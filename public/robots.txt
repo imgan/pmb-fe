@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+# Sitemap is generated dynamically by the backend from live article data.
+# Update this URL to match wherever /sitemap.xml is reachable on your
+# production domain (recommended: reverse-proxy the backend behind the
+# same domain as this frontend so both routes below are same-origin).
+Sitemap: http://localhost:3000/sitemap.xml

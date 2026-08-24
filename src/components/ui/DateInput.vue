@@ -1,0 +1,33 @@
+<script setup lang="ts">
+withDefaults(
+  defineProps<{
+    label?: string;
+    error?: string | null;
+    required?: boolean;
+    min?: string;
+  }>(),
+  { required: false }
+);
+
+const model = defineModel<string>({ default: '' });
+</script>
+
+<template>
+  <label class="block">
+    <span v-if="label" class="block font-medium text-label-md text-on-surface mb-2">
+      {{ label }}<span v-if="required" class="text-error"> *</span>
+    </span>
+    <input
+      v-model="model"
+      type="date"
+      :min="min"
+      class="w-full px-3 py-2 border rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none transition-colors"
+      :class="
+        error
+          ? 'border-error focus:border-error focus:ring-1 focus:ring-error'
+          : 'border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary'
+      "
+    />
+    <p v-if="error" class="mt-1 text-label-sm text-error">{{ error }}</p>
+  </label>
+</template>
