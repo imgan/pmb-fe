@@ -60,7 +60,9 @@ const {
   confirmDelete,
 } = useCrudPage<Mahasiswa>({
   fetchList: mahasiswaApi.list,
-  remove: (id) => mahasiswaApi.update(id, { statusKeluar: null, tanggalKeluar: null, alasanKeluar: null }),
+  remove: async (id) => {
+    await mahasiswaApi.update(id, { statusKeluar: null, tanggalKeluar: null, alasanKeluar: null });
+  },
   extraQuery: () => ({ statusKeluar: statusFilter.value || STATUS_KELUAR_VALUES.join(',') }),
 });
 

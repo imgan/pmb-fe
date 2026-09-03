@@ -120,22 +120,32 @@ const biodataLoading = ref(false);
 const biodataError = ref<string | null>(null);
 const biodataSubmitting = ref(false);
 
+const DATE_BIODATA_KEYS = ['tanggalLahir', 'tanggalMasukKuliah', 'tanggalLahirAyah', 'tanggalLahirIbu', 'tanggalLahirWali'];
+
 const emptyBiodataForm = (): Record<string, string> => ({
   tempatLahir: '',
   tanggalLahir: '',
+  jenisKelamin: '',
   agama: '',
   kewarganegaraan: 'Indonesia',
   noKtp: '',
+  nisn: '',
+  jalurPendaftaran: '',
   npwp: '',
+  jenisPendaftaran: '',
+  tanggalMasukKuliah: '',
+  mulaiSemester: '',
   jalan: '',
   dusun: '',
   rt: '',
   rw: '',
   kelurahan: '',
+  kecamatan: '',
   kodePos: '',
   propinsi: '',
   jenisTinggal: '',
   alatTransportasi: '',
+  teleponRumah: '',
   kelas: '',
   programStudi: '',
   waktuKuliah: '',
@@ -145,10 +155,30 @@ const emptyBiodataForm = (): Record<string, string> => ({
   email: '',
   hp: '',
   almamater: '',
+  terimaKps: '',
+  noKps: '',
+  nikAyah: '',
   namaAyah: '',
+  tanggalLahirAyah: '',
+  pendidikanAyah: '',
   pekerjaanAyah: '',
+  penghasilanAyah: '',
+  nikIbu: '',
   namaIbu: '',
+  tanggalLahirIbu: '',
+  pendidikanIbu: '',
   pekerjaanIbu: '',
+  penghasilanIbu: '',
+  namaWali: '',
+  tanggalLahirWali: '',
+  pendidikanWali: '',
+  pekerjaanWali: '',
+  penghasilanWali: '',
+  jenisPembiayaan: '',
+  biayaMasuk: '',
+  sksDiakui: '',
+  perguruanTinggiAsal: '',
+  programStudiAsal: '',
 });
 
 const biodataForm = reactive(emptyBiodataForm());
@@ -163,10 +193,13 @@ const openBiodata = async (item: BiodataMahasiswaItem) => {
     const biodata = await mahasiswaApi.getBiodata(item.id);
     if (biodata) {
       Object.keys(biodataForm).forEach((key) => {
-        const value = (biodata as unknown as Record<string, string | null>)[key];
-        (biodataForm as Record<string, string>)[key] = value ?? '';
+        const value = (biodata as unknown as Record<string, string | number | null>)[key];
+        (biodataForm as Record<string, string>)[key] = value === null || value === undefined ? '' : String(value);
       });
-      biodataForm.tanggalLahir = biodata.tanggalLahir?.slice(0, 10) ?? '';
+      DATE_BIODATA_KEYS.forEach((key) => {
+        const value = (biodata as unknown as Record<string, string | null>)[key];
+        biodataForm[key] = value?.slice(0, 10) ?? '';
+      });
     } else if (item.jurusan) {
       biodataForm.programStudi = item.jurusan.namaJurusan;
     }
@@ -252,24 +285,57 @@ const handleSaveBiodata = async () => {
           {{ biodataError }}
         </div>
 
-        <TextInput v-model="biodataForm.tempatLahir" label="Tempat Lahir" />
-        <DateInput v-model="biodataForm.tanggalLahir" label="Tanggal Lahir" />
-        <SelectInput v-model="biodataForm.agama" label="Agama" placeholder="Pilih agama..." :options="agamaOptions" />
-        <TextInput v-model="biodataForm.kewarganegaraan" label="Kewarganegaraan" />
-        <TextInput v-model="biodataForm.noKtp" label="No KTP" />
-        <TextInput v-model="biodataForm.npwp" label="NPWP" />
-        <TextInput v-model="biodataForm.jalan" label="Jalan" />
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <TextInput v-model="biodataForm.dusun" label="Dusun" />
-          <TextInput v-model="biodataForm.rt" label="RT" />
-          <TextInput v-model="biodataForm.rw" label="RW" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextInput v-model="biodataForm.tempatLahir" label="Tempat Lahir" />
+          <DateInput v-model="biodataForm.tanggalLahir" label="Tanggal Lahir" />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="biodataForm.kelurahan" label="Kelurahan" />
-          <TextInput v-model="biodataForm.kodePos" label="Kode Pos" />
+          <SelectInput
+            v-model="biodataForm.jenisKelamin"
+            label="Jenis Kelamin"
+            placeholder="Pilih jenis kelamin..."
+            :options="[{ value: 'L', label: 'Laki-laki' }, { value: 'P', label: 'Perempuan' }]"
+          />
+          <SelectInput v-model="biodataForm.agama" label="Agama" placeholder="Pilih agama..." :options="agamaOptions" />
         </div>
-        <TextInput v-model="biodataForm.propinsi" label="Propinsi" />
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextInput v-model="biodataForm.noKtp" label="NIK" />
+          <TextInput v-model="biodataForm.nisn" label="NISN" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextInput v-model="biodataForm.kewarganegaraan" label="Kewarganegaraan" />
+          <TextInput v-model="biodataForm.npwp" label="NPWP" />
+        </div>
+
+        <div class="pt-2 border-t border-outline-variant">
+          <p class="font-medium text-label-md text-on-surface mb-4">Data Pendaftaran</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TextInput v-model="biodataForm.jalurPendaftaran" label="Jalur Pendaftaran" />
+            <TextInput v-model="biodataForm.jenisPendaftaran" label="Jenis Pendaftaran" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <DateInput v-model="biodataForm.tanggalMasukKuliah" label="Tgl Masuk Kuliah" />
+            <TextInput v-model="biodataForm.mulaiSemester" label="Mulai Semester" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-outline-variant">
+          <p class="font-medium text-label-md text-on-surface mb-4">Alamat</p>
+          <TextInput v-model="biodataForm.jalan" label="Jalan" />
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+            <TextInput v-model="biodataForm.dusun" label="Dusun" />
+            <TextInput v-model="biodataForm.rt" label="RT" />
+            <TextInput v-model="biodataForm.rw" label="RW" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.kelurahan" label="Kelurahan" />
+            <TextInput v-model="biodataForm.kecamatan" label="Kecamatan" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.kodePos" label="Kode Pos" />
+            <TextInput v-model="biodataForm.propinsi" label="Propinsi" />
+          </div>
+        </div>
 
         <SelectInput
           v-model="biodataForm.jenisTinggal"
@@ -309,22 +375,79 @@ const handleSaveBiodata = async () => {
           :options="statusDiktiOptions"
         />
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
           <TextInput v-model="biodataForm.email" label="E-mail" type="email" />
-          <TextInput v-model="biodataForm.hp" label="HP" />
+          <TextInput v-model="biodataForm.hp" label="No HP" />
+          <TextInput v-model="biodataForm.teleponRumah" label="Telp Rumah" />
         </div>
         <TextInput v-model="biodataForm.almamater" label="Almamater" />
 
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SelectInput
+            v-model="biodataForm.terimaKps"
+            label="Terima KPS"
+            placeholder="Pilih..."
+            :options="[{ value: 'Ya', label: 'Ya' }, { value: 'Tidak', label: 'Tidak' }]"
+          />
+          <TextInput v-model="biodataForm.noKps" label="No KPS" />
+        </div>
+
         <div class="pt-2 border-t border-outline-variant">
-          <p class="font-medium text-label-md text-on-surface mb-4">Data Orang Tua</p>
+          <p class="font-medium text-label-md text-on-surface mb-4">Data Ayah</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TextInput v-model="biodataForm.nikAyah" label="NIK Ayah" />
             <TextInput v-model="biodataForm.namaAyah" label="Nama Ayah" />
-            <TextInput v-model="biodataForm.pekerjaanAyah" label="Pekerjaan Ayah" />
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <TextInput v-model="biodataForm.namaIbu" label="Nama Ibu" />
-            <TextInput v-model="biodataForm.pekerjaanIbu" label="Pekerjaan Ibu" />
+            <DateInput v-model="biodataForm.tanggalLahirAyah" label="Tgl Lahir Ayah" />
+            <TextInput v-model="biodataForm.pendidikanAyah" label="Pendidikan Ayah" />
           </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.pekerjaanAyah" label="Pekerjaan Ayah" />
+            <TextInput v-model="biodataForm.penghasilanAyah" label="Penghasilan Ayah" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-outline-variant">
+          <p class="font-medium text-label-md text-on-surface mb-4">Data Ibu</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TextInput v-model="biodataForm.nikIbu" label="NIK Ibu" />
+            <TextInput v-model="biodataForm.namaIbu" label="Nama Ibu" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <DateInput v-model="biodataForm.tanggalLahirIbu" label="Tanggal Lahir Ibu" />
+            <TextInput v-model="biodataForm.pendidikanIbu" label="Pendidikan Ibu" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.pekerjaanIbu" label="Pekerjaan Ibu" />
+            <TextInput v-model="biodataForm.penghasilanIbu" label="Penghasilan Ibu" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-outline-variant">
+          <p class="font-medium text-label-md text-on-surface mb-4">Data Wali</p>
+          <TextInput v-model="biodataForm.namaWali" label="Nama Wali" />
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <DateInput v-model="biodataForm.tanggalLahirWali" label="Tanggal Lahir Wali" />
+            <TextInput v-model="biodataForm.pendidikanWali" label="Pendidikan Wali" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.pekerjaanWali" label="Pekerjaan Wali" />
+            <TextInput v-model="biodataForm.penghasilanWali" label="Penghasilan Wali" />
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-outline-variant">
+          <p class="font-medium text-label-md text-on-surface mb-4">Data Pembiayaan &amp; Transfer</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TextInput v-model="biodataForm.jenisPembiayaan" label="Jenis Pembiayaan" />
+            <TextInput v-model="biodataForm.biayaMasuk" label="Biaya Masuk" type="number" />
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <TextInput v-model="biodataForm.sksDiakui" label="SKS Diakui" type="number" />
+            <TextInput v-model="biodataForm.perguruanTinggiAsal" label="Perguruan Tinggi Asal" />
+          </div>
+          <TextInput v-model="biodataForm.programStudiAsal" label="Program Studi Asal" class="mt-4" />
         </div>
       </form>
       <template #footer>

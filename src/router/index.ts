@@ -2,6 +2,8 @@ import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import { useAuthStore } from '@/stores/auth';
 import { useMenuStore } from '@/stores/menu';
 import { usePesertaAuthStore } from '@/stores/pesertaAuth';
+import { useDosenAuthStore } from '@/stores/dosenAuth';
+import { useMahasiswaAuthStore } from '@/stores/mahasiswaAuth';
 import { MENU } from '@/constants/menuCodes';
 
 declare module 'vue-router' {
@@ -9,6 +11,8 @@ declare module 'vue-router' {
     public?: boolean;
     menuCode?: string;
     pesertaAuth?: boolean;
+    dosenAuth?: boolean;
+    mahasiswaAuth?: boolean;
   }
 }
 
@@ -81,6 +85,108 @@ const routes: RouteRecordRaw[] = [
     name: 'informasi-calon-mahasiswa',
     component: () => import('@/views/public/InformasiCalonMahasiswaView.vue'),
     meta: { public: true },
+  },
+
+  // ---- Portal Dosen (self-service, auth & nav terpisah dari sistem admin) ----
+  {
+    path: '/dosen/login',
+    name: 'dosen-login',
+    component: () => import('@/views/dosen/LoginView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/dosen',
+    component: () => import('@/components/layout/DosenLayout.vue'),
+    children: [
+      { path: '', redirect: '/dosen/kehadiran-mengajar' },
+      {
+        path: 'kehadiran-mengajar',
+        name: 'dosen-kehadiran-mengajar',
+        component: () => import('@/views/dosen/KehadiranMengajarView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'rekap-mahasiswa',
+        name: 'dosen-rekap-mahasiswa',
+        component: () => import('@/views/dosen/RekapMahasiswaView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'periodik',
+        name: 'dosen-periodik',
+        component: () => import('@/views/dosen/PeriodikView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'lain-lain',
+        name: 'dosen-lain-lain',
+        component: () => import('@/views/dosen/LainLainView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'panduan-sistem',
+        name: 'dosen-panduan-sistem',
+        component: () => import('@/views/dosen/PanduanSistemView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'silabus-matakuliah',
+        name: 'dosen-silabus-matakuliah',
+        component: () => import('@/views/dosen/SilabusMatakuliahView.vue'),
+        meta: { dosenAuth: true },
+      },
+    ],
+  },
+
+  // ---- Portal Mahasiswa (self-service, auth & nav terpisah dari sistem admin) ----
+  {
+    path: '/mahasiswa/login',
+    name: 'mahasiswa-login',
+    component: () => import('@/views/mahasiswa/LoginView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/mahasiswa',
+    component: () => import('@/components/layout/MahasiswaLayout.vue'),
+    children: [
+      { path: '', redirect: '/mahasiswa/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'mahasiswa-dashboard',
+        component: () => import('@/views/mahasiswa/DashboardView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'krs',
+        name: 'mahasiswa-krs',
+        component: () => import('@/views/mahasiswa/KrsView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'jadwal',
+        name: 'mahasiswa-jadwal',
+        component: () => import('@/views/mahasiswa/JadwalView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'nilai',
+        name: 'mahasiswa-nilai',
+        component: () => import('@/views/mahasiswa/NilaiView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'transkrip',
+        name: 'mahasiswa-transkrip',
+        component: () => import('@/views/mahasiswa/TranskripView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'surat-keterangan',
+        name: 'mahasiswa-surat-keterangan',
+        component: () => import('@/views/mahasiswa/SuratKeteranganView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+    ],
   },
 
   // ---- Admin console ----
@@ -659,42 +765,6 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.PRODI_BIODATA_MAHASISWA_MANAGEMENT },
       },
       {
-        path: 'laporan/ijazah-transkrip',
-        name: 'prodi-laporan-ijazah-transkrip',
-        component: () => import('@/views/prodi/laporan/IjazahTranskripView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_IJAZAH_TRANSKRIP_MANAGEMENT },
-      },
-      {
-        path: 'laporan/cetak-surat',
-        name: 'prodi-laporan-cetak-surat',
-        component: () => import('@/views/prodi/laporan/CetakSuratView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_CETAK_SURAT_MANAGEMENT },
-      },
-      {
-        path: 'laporan/cetak-realisasi',
-        name: 'prodi-laporan-cetak-realisasi',
-        component: () => import('@/views/prodi/laporan/CetakRealisasiView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_CETAK_REALISASI_MANAGEMENT },
-      },
-      {
-        path: 'laporan/cetak-mahasiswa-perkelas',
-        name: 'prodi-laporan-cetak-mahasiswa-perkelas',
-        component: () => import('@/views/prodi/laporan/CetakMahasiswaPerkelasView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_CETAK_MAHASISWA_PERKELAS_MANAGEMENT },
-      },
-      {
-        path: 'laporan/cetak-kehadiran-mengajar',
-        name: 'prodi-laporan-cetak-kehadiran-mengajar',
-        component: () => import('@/views/prodi/laporan/CetakKehadiranMengajarView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_CETAK_KEHADIRAN_MENGAJAR_MANAGEMENT },
-      },
-      {
-        path: 'laporan/cetak-khs',
-        name: 'prodi-laporan-cetak-khs',
-        component: () => import('@/views/prodi/laporan/CetakKhsView.vue'),
-        meta: { menuCode: MENU.PRODI_LAPORAN_CETAK_KHS_MANAGEMENT },
-      },
-      {
         path: 'readme',
         name: 'prodi-readme',
         component: () => import('@/views/prodi/ReadMeView.vue'),
@@ -703,6 +773,299 @@ const routes: RouteRecordRaw[] = [
       {
         path: '403',
         name: 'prodi-forbidden',
+        component: () => import('@/views/ForbiddenView.vue'),
+      },
+    ],
+  },
+
+  // ---- Keuangan console ----
+  {
+    path: '/keuangan',
+    component: () => import('@/components/layout/KeuanganLayout.vue'),
+    children: [
+      { path: '', redirect: '/keuangan/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'keuangan-dashboard',
+        component: () => import('@/views/keuangan/DashboardView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_DASHBOARD },
+      },
+      {
+        path: 'master/keringanan',
+        name: 'keuangan-keringanan',
+        component: () => import('@/views/keuangan/master/KeringananView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_KERINGANAN_MANAGEMENT },
+      },
+      {
+        path: 'master/tarif-ta-skripsi',
+        name: 'keuangan-tarif-ta-skripsi',
+        component: () => import('@/views/keuangan/master/TarifTaSkripsiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_TARIF_TA_SKRIPSI_MANAGEMENT },
+      },
+      {
+        path: 'master/tarif-pembimbing',
+        name: 'keuangan-tarif-pembimbing',
+        component: () => import('@/views/keuangan/master/TarifPembimbingView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_TARIF_PEMBIMBING_MANAGEMENT },
+      },
+      {
+        path: 'master/tarif-biaya-lain',
+        name: 'keuangan-tarif-biaya-lain',
+        component: () => import('@/views/keuangan/master/TarifBiayaLainView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_TARIF_BIAYA_LAIN_MANAGEMENT },
+      },
+      {
+        path: 'master/tarif-biaya-kuliah',
+        name: 'keuangan-tarif-biaya-kuliah',
+        component: () => import('@/views/keuangan/master/TarifBiayaKuliahView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_TARIF_BIAYA_KULIAH_MANAGEMENT },
+      },
+      {
+        path: 'master/generate-tagihan',
+        name: 'keuangan-generate-tagihan',
+        component: () => import('@/views/keuangan/master/GenerateTagihanView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_GENERATE_TAGIHAN_MANAGEMENT },
+      },
+      {
+        path: 'master/daftar-potongan',
+        name: 'keuangan-daftar-potongan',
+        component: () => import('@/views/keuangan/master/DaftarPotonganView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_DAFTAR_POTONGAN_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-sertifikasi',
+        name: 'keuangan-pembayaran-sertifikasi',
+        component: () => import('@/views/keuangan/transaksi/PembayaranSertifikasiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_SERTIFIKASI_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/voc-ujian',
+        name: 'keuangan-voc-ujian',
+        component: () => import('@/views/keuangan/transaksi/VocUjianView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_VOC_UJIAN_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-sp',
+        name: 'keuangan-pembayaran-sp',
+        component: () => import('@/views/keuangan/transaksi/PembayaranSpView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_SP_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/voc-sp',
+        name: 'keuangan-voc-sp',
+        component: () => import('@/views/keuangan/transaksi/VocSpView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_VOC_SP_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-kuliah',
+        name: 'keuangan-pembayaran-kuliah',
+        component: () => import('@/views/keuangan/transaksi/PembayaranKuliahView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_KULIAH_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-ta-skripsi',
+        name: 'keuangan-pembayaran-ta-skripsi',
+        component: () => import('@/views/keuangan/transaksi/PembayaranTaSkripsiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_TA_SKRIPSI_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/perpanjangan-ta-skripsi',
+        name: 'keuangan-perpanjangan-ta-skripsi',
+        component: () => import('@/views/keuangan/transaksi/PerpanjanganTaSkripsiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PERPANJANGAN_TA_SKRIPSI_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/tunggakan-mahasiswa',
+        name: 'keuangan-tunggakan-mahasiswa',
+        component: () => import('@/views/keuangan/transaksi/TunggakanMahasiswaView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_TUNGGAKAN_MAHASISWA_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-wisuda',
+        name: 'keuangan-pembayaran-wisuda',
+        component: () => import('@/views/keuangan/transaksi/PembayaranWisudaView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_WISUDA_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/pembayaran-wisuda/:mahasiswaId',
+        name: 'keuangan-pembayaran-wisuda-detail',
+        component: () => import('@/views/keuangan/transaksi/PembayaranWisudaDetailView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_WISUDA_MANAGEMENT },
+        props: true,
+      },
+      {
+        path: 'laporan/tunggakan-mahasiswa',
+        name: 'keuangan-laporan-tunggakan-mahasiswa',
+        component: () => import('@/views/keuangan/laporan/TunggakanMahasiswaView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_TUNGGAKAN_MAHASISWA_MANAGEMENT },
+      },
+      {
+        path: 'laporan/uang-kuliah',
+        name: 'keuangan-laporan-uang-kuliah',
+        component: () => import('@/views/keuangan/laporan/LaporanUangKuliahView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_UANG_KULIAH_MANAGEMENT },
+      },
+      {
+        path: 'laporan/lain',
+        name: 'keuangan-laporan-lain',
+        component: () => import('@/views/keuangan/laporan/LaporanLainView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_LAIN_MANAGEMENT },
+      },
+      {
+        path: 'laporan/bebas-tunggakan',
+        name: 'keuangan-laporan-bebas-tunggakan',
+        component: () => import('@/views/keuangan/laporan/LaporanBebasTunggakanView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_BEBAS_TUNGGAKAN_MANAGEMENT },
+      },
+      {
+        path: 'laporan/tunggakan',
+        name: 'keuangan-laporan-tunggakan',
+        component: () => import('@/views/keuangan/laporan/LaporanTunggakanView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_TUNGGAKAN_MANAGEMENT },
+      },
+      {
+        path: 'laporan/sertifikasi',
+        name: 'keuangan-laporan-sertifikasi',
+        component: () => import('@/views/keuangan/laporan/LaporanSertifikasiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_SERTIFIKASI_MANAGEMENT },
+      },
+      {
+        path: 'laporan/kti-skripsi',
+        name: 'keuangan-laporan-kti-skripsi',
+        component: () => import('@/views/keuangan/laporan/LaporanKtiSkripsiView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_KTI_SKRIPSI_MANAGEMENT },
+      },
+      {
+        path: 'laporan/semester-pendek',
+        name: 'keuangan-laporan-semester-pendek',
+        component: () => import('@/views/keuangan/laporan/LaporanSemesterPendekView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_LAPORAN_SEMESTER_PENDEK_MANAGEMENT },
+      },
+      {
+        path: 'akuntansi/buku-besar',
+        name: 'keuangan-buku-besar',
+        component: () => import('@/views/keuangan/akuntansi/BukuBesarView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_BUKU_BESAR_MANAGEMENT },
+      },
+      {
+        path: 'akuntansi/neraca',
+        name: 'keuangan-neraca',
+        component: () => import('@/views/keuangan/akuntansi/NeracaView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_NERACA_MANAGEMENT },
+      },
+      {
+        path: 'audit-log',
+        name: 'keuangan-audit-log',
+        component: () => import('@/views/system/AuditLogView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_AUDIT_LOG_MANAGEMENT },
+      },
+      {
+        path: '403',
+        name: 'keuangan-forbidden',
+        component: () => import('@/views/ForbiddenView.vue'),
+      },
+    ],
+  },
+
+  // ---- SIM console ----
+  {
+    path: '/sim',
+    component: () => import('@/components/layout/SimLayout.vue'),
+    children: [
+      { path: '', redirect: '/sim/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'sim-dashboard',
+        component: () => import('@/views/sim/DashboardView.vue'),
+        meta: { menuCode: MENU.SIM_DASHBOARD },
+      },
+      {
+        path: 'master/student-body',
+        name: 'sim-student-body',
+        component: () => import('@/views/sim/master/StudentBodyView.vue'),
+        meta: { menuCode: MENU.SIM_STUDENT_BODY_MANAGEMENT },
+      },
+      {
+        path: 'master/presentase-kehadiran',
+        name: 'sim-presentase-kehadiran',
+        component: () => import('@/views/sim/master/PresentaseKehadiranView.vue'),
+        meta: { menuCode: MENU.SIM_PRESENTASE_KEHADIRAN_MANAGEMENT },
+      },
+      {
+        path: 'master/kehadiran-kelas',
+        name: 'sim-kehadiran-kelas',
+        component: () => import('@/views/sim/master/KehadiranKelasView.vue'),
+        meta: { menuCode: MENU.SIM_KEHADIRAN_KELAS_MANAGEMENT },
+      },
+      {
+        path: 'master/frs',
+        name: 'sim-frs',
+        component: () => import('@/views/sim/master/FrsView.vue'),
+        meta: { menuCode: MENU.SIM_FRS_MANAGEMENT },
+      },
+      {
+        path: 'master/ujian',
+        name: 'sim-ujian',
+        component: () => import('@/views/sim/master/UjianView.vue'),
+        meta: { menuCode: MENU.SIM_UJIAN_MANAGEMENT },
+      },
+      {
+        path: 'master/aktif',
+        name: 'sim-aktif',
+        component: () => import('@/views/sim/master/AktifView.vue'),
+        meta: { menuCode: MENU.SIM_AKTIF_MANAGEMENT },
+      },
+      {
+        path: 'master/ipk',
+        name: 'sim-ipk',
+        component: () => import('@/views/sim/master/IpkView.vue'),
+        meta: { menuCode: MENU.SIM_IPK_MANAGEMENT },
+      },
+      {
+        path: 'master/lulusan',
+        name: 'sim-lulusan',
+        component: () => import('@/views/sim/master/LulusanView.vue'),
+        meta: { menuCode: MENU.SIM_LULUSAN_MANAGEMENT },
+      },
+      {
+        path: 'master/nilai-d-e',
+        name: 'sim-nilai-d-e',
+        component: () => import('@/views/sim/master/NilaiDEView.vue'),
+        meta: { menuCode: MENU.SIM_NILAI_D_E_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/cetak-kehadiran-mengajar',
+        name: 'sim-cetak-kehadiran-mengajar',
+        component: () => import('@/views/sim/transaksi/CetakKehadiranMengajarView.vue'),
+        meta: { menuCode: MENU.SIM_TRANSAKSI_CETAK_KEHADIRAN_MENGAJAR_MANAGEMENT },
+      },
+      {
+        path: 'transaksi/rekapitulasi-pengajaran',
+        name: 'sim-rekapitulasi-pengajaran',
+        component: () => import('@/views/sim/transaksi/RekapitulasiPengajaranView.vue'),
+        meta: { menuCode: MENU.SIM_TRANSAKSI_REKAPITULASI_PENGAJARAN_MANAGEMENT },
+      },
+      {
+        path: 'feeder',
+        name: 'sim-feeder',
+        component: () => import('@/views/sim/FeederView.vue'),
+        meta: { menuCode: MENU.SIM_FEEDER_MANAGEMENT },
+      },
+      {
+        path: 'panduan-smart',
+        name: 'sim-panduan-smart',
+        component: () => import('@/views/sim/PanduanSmartView.vue'),
+        meta: { menuCode: MENU.SIM_PANDUAN_SMART_MANAGEMENT },
+      },
+      {
+        path: 'panduan-akademik',
+        name: 'sim-panduan-akademik',
+        component: () => import('@/views/sim/PanduanAkademikView.vue'),
+        meta: { menuCode: MENU.SIM_PANDUAN_AKADEMIK_MANAGEMENT },
+      },
+      {
+        path: '403',
+        name: 'sim-forbidden',
         component: () => import('@/views/ForbiddenView.vue'),
       },
     ],
@@ -721,6 +1084,28 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (to.meta.dosenAuth) {
+    const dosenAuthStore = useDosenAuthStore();
+    if (!dosenAuthStore.ready) {
+      await dosenAuthStore.bootstrap();
+    }
+    if (!dosenAuthStore.isAuthenticated) {
+      return { name: 'dosen-login', query: { redirect: to.fullPath } };
+    }
+    return true;
+  }
+
+  if (to.meta.mahasiswaAuth) {
+    const mahasiswaAuthStore = useMahasiswaAuthStore();
+    if (!mahasiswaAuthStore.ready) {
+      await mahasiswaAuthStore.bootstrap();
+    }
+    if (!mahasiswaAuthStore.isAuthenticated) {
+      return { name: 'mahasiswa-login', query: { redirect: to.fullPath } };
+    }
+    return true;
+  }
+
   if (to.meta.pesertaAuth) {
     const pesertaAuthStore = usePesertaAuthStore();
     if (!pesertaAuthStore.ready) {
@@ -745,6 +1130,8 @@ router.beforeEach(async (to) => {
         baak: { path: '/baak/dashboard', dashboardMenuCode: MENU.BAAK_DASHBOARD },
         sdi: { path: '/sdi/dashboard', dashboardMenuCode: MENU.SDI_DASHBOARD },
         prodi: { path: '/prodi/beranda', dashboardMenuCode: MENU.PRODI_DASHBOARD },
+        keuangan: { path: '/keuangan/dashboard', dashboardMenuCode: MENU.KEUANGAN_DASHBOARD },
+        sim: { path: '/sim/dashboard', dashboardMenuCode: MENU.SIM_DASHBOARD },
       };
       const accessibleModule = Object.values(HOME_BY_MODULE).find(
         (m) => authStore.permissionsFor(m.dashboardMenuCode).canRead
@@ -767,6 +1154,8 @@ router.beforeEach(async (to) => {
     if (to.path.startsWith('/baak')) return { name: 'baak-forbidden' };
     if (to.path.startsWith('/sdi')) return { name: 'sdi-forbidden' };
     if (to.path.startsWith('/prodi')) return { name: 'prodi-forbidden' };
+    if (to.path.startsWith('/keuangan')) return { name: 'keuangan-forbidden' };
+    if (to.path.startsWith('/sim')) return { name: 'sim-forbidden' };
     return { name: 'forbidden' };
   }
 

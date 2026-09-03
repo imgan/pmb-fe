@@ -12,11 +12,13 @@ import Modal from '@/components/ui/Modal.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
-import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { tahunAjaranApi, type AktivasiTahunAjaranResult } from '@/api/tahunAjaran';
 import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
+import { toastError } from '@/utils/swal';
 import { MENU } from '@/constants/menuCodes';
+import type { TahunAjaran } from '@/types/entities';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.TAHUN_AJARAN_MANAGEMENT);
 
@@ -63,15 +65,22 @@ const onFilterChange = () => {
 
 const columns: DataTableColumn[] = [
   { key: 'nama', label: 'Tahun Ajaran', sortable: true },
+  { key: 'jenisSemester', label: 'Semester', align: 'center' },
   { key: 'tahunMulai', label: 'Tahun Mulai', align: 'center', sortable: true },
   { key: 'tahunSelesai', label: 'Tahun Selesai', align: 'center', sortable: true },
   { key: 'isActive', label: 'Status', align: 'center', sortable: true },
+];
+
+const JENIS_SEMESTER_OPTIONS = [
+  { value: 'GANJIL', label: 'Ganjil' },
+  { value: 'GENAP', label: 'Genap' },
 ];
 
 const form = reactive({
   nama: '',
   tahunMulai: new Date().getFullYear() as number | '',
   tahunSelesai: new Date().getFullYear() + 1 as number | '',
+  jenisSemester: 'GANJIL' as 'GANJIL' | 'GENAP',
   isActive: true,
 });
 const formError = ref<string | null>(null);
@@ -88,12 +97,14 @@ watch(
       form.nama = editing.nama;
       form.tahunMulai = editing.tahunMulai;
       form.tahunSelesai = editing.tahunSelesai;
+      form.jenisSemester = editing.jenisSemester;
       form.isActive = editing.isActive;
     } else {
       const year = new Date().getFullYear();
       form.nama = `${year}/${year + 1}`;
       form.tahunMulai = year;
       form.tahunSelesai = year + 1;
+      form.jenisSemester = 'GANJIL';
       form.isActive = true;
     }
   },
@@ -117,6 +128,7 @@ const handleSubmit = async () => {
       nama: form.nama.trim(),
       tahunMulai: Number(form.tahunMulai),
       tahunSelesai: Number(form.tahunSelesai),
+      jenisSemester: form.jenisSemester,
       isActive: form.isActive,
     };
     if (editingItem.value) {
@@ -130,6 +142,35 @@ const handleSubmit = async () => {
   } finally {
     submitting.value = false;
   }
+};
+
+// ---- Aktifkan periode (trigger "naik semester" — lihat catatan di tahunAjaran.service.js) ----
+const activateTarget = ref<TahunAjaran | null>(null);
+const activating = ref(false);
+const activationResult = ref<AktivasiTahunAjaranResult | null>(null);
+
+const requestActivate = (item: TahunAjaran) => {
+  activateTarget.value = item;
+};
+const cancelActivate = () => {
+  activateTarget.value = null;
+};
+const confirmActivate = async () => {
+  if (!activateTarget.value) return;
+  activating.value = true;
+  try {
+    const result = await tahunAjaranApi.activate(activateTarget.value.id);
+    activateTarget.value = null;
+    activationResult.value = result;
+    fetchItems();
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal mengaktifkan tahun ajaran'));
+  } finally {
+    activating.value = false;
+  }
+};
+const closeActivationResult = () => {
+  activationResult.value = null;
 };
 </script>
 
@@ -163,10 +204,20 @@ const handleSubmit = async () => {
         :sort-dir="sortDir"
         @sort="handleSort"
       >
+        <template #cell-jenisSemester="{ item }">{{ item.jenisSemester === 'GENAP' ? 'Genap' : 'Ganjil' }}</template>
         <template #cell-isActive="{ item }">
           <StatusBadge :label="item.isActive ? 'Aktif' : 'Non-aktif'" :variant="item.isActive ? 'success' : 'neutral'" />
         </template>
         <template #actions="{ item }">
+          <button
+            v-if="canUpdate && !item.isActive"
+            type="button"
+            class="px-2.5 py-1 rounded-md bg-primary text-on-primary text-label-sm hover:opacity-90 transition-opacity"
+            title="Aktifkan periode ini — akan menaikkan semester berjalan seluruh mahasiswa aktif"
+            @click="requestActivate(item)"
+          >
+            Aktifkan
+          </button>
           <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
         </template>
       </DataTable>
@@ -188,6 +239,16 @@ const handleSubmit = async () => {
           <TextInput v-model.number="form.tahunMulai" label="Tahun Mulai" type="number" required :error="errors.tahunMulai" />
           <TextInput v-model.number="form.tahunSelesai" label="Tahun Selesai" type="number" required :error="errors.tahunSelesai" />
         </div>
+        <SelectInput
+          v-model="form.jenisSemester"
+          label="Semester"
+          required
+          :options="JENIS_SEMESTER_OPTIONS"
+        />
+        <p class="text-label-sm text-on-surface-variant -mt-2">
+          Dipakai untuk menghitung otomatis semester berjalan mahasiswa di KRS — pastikan sesuai
+          periode yang sebenarnya (Ganjil/Genap) supaya hitungannya benar.
+        </p>
         <CheckboxToggle
           v-model="form.isActive"
           label="Status Aktif"
@@ -210,5 +271,87 @@ const handleSubmit = async () => {
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
+
+    <ConfirmDialog
+      :open="!!activateTarget"
+      title="Aktifkan Tahun Ajaran"
+      :message="`Aktifkan ${activateTarget?.nama ?? ''} (${activateTarget?.jenisSemester === 'GENAP' ? 'Genap' : 'Ganjil'})? Tahun ajaran lain akan dinonaktifkan, dan semester berjalan seluruh mahasiswa aktif otomatis naik mengikuti periode ini.`"
+      :loading="activating"
+      @confirm="confirmActivate"
+      @cancel="cancelActivate"
+    />
+
+    <Modal
+      :model-value="!!activationResult"
+      title="Tahun Ajaran Diaktifkan"
+      size="lg"
+      @update:model-value="closeActivationResult"
+    >
+      <div v-if="activationResult" class="space-y-4">
+        <p class="text-body-sm text-on-surface">
+          <strong>{{ activationResult.tahunAjaran.nama }}</strong>
+          ({{ activationResult.tahunAjaran.jenisSemester === 'GENAP' ? 'Genap' : 'Ganjil' }}) sekarang aktif.
+          Semester berjalan {{ activationResult.totalMahasiswaAktif }} mahasiswa aktif sudah otomatis naik
+          mengikuti periode ini.
+        </p>
+
+        <div v-if="activationResult.cutiDiproses.length" class="space-y-2">
+          <p class="px-3 py-2 rounded-md bg-surface-container text-on-surface text-body-sm">
+            {{ activationResult.cutiDiproses.length }} mahasiswa sedang cuti — jumlah semester cuti mereka
+            otomatis bertambah 1 untuk periode ini (tidak ikut naik semester selama masih cuti).
+          </p>
+          <div class="border border-outline-variant rounded-md max-h-40 overflow-y-auto">
+            <table class="w-full text-left text-body-sm">
+              <thead class="bg-surface-container-low sticky top-0">
+                <tr>
+                  <th class="p-2 font-semibold text-on-surface-variant">NIM</th>
+                  <th class="p-2 font-semibold text-on-surface-variant">Nama</th>
+                  <th class="p-2 font-semibold text-on-surface-variant text-center">Jumlah Semester Cuti</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                <tr v-for="mhs in activationResult.cutiDiproses" :key="mhs.id">
+                  <td class="p-2">{{ mhs.nim }}</td>
+                  <td class="p-2">{{ mhs.namaLengkap }}</td>
+                  <td class="p-2 text-center">{{ mhs.jumlahSemesterCutiBaru }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div v-if="activationResult.melebihiMasaStudi.length" class="space-y-2">
+          <p class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
+            {{ activationResult.melebihiMasaStudi.length }} mahasiswa semesternya sudah melebihi batas wajar
+            masa studi ({{ activationResult.maxSemesterWajar }} semester) — perlu ditinjau manual di menu
+            Masa Studi (evaluasi DO, bukan otomatis diubah statusnya).
+          </p>
+          <div class="border border-outline-variant rounded-md max-h-56 overflow-y-auto">
+            <table class="w-full text-left text-body-sm">
+              <thead class="bg-surface-container-low sticky top-0">
+                <tr>
+                  <th class="p-2 font-semibold text-on-surface-variant">NIM</th>
+                  <th class="p-2 font-semibold text-on-surface-variant">Nama</th>
+                  <th class="p-2 font-semibold text-on-surface-variant text-center">Semester</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-outline-variant">
+                <tr v-for="mhs in activationResult.melebihiMasaStudi" :key="mhs.id">
+                  <td class="p-2">{{ mhs.nim }}</td>
+                  <td class="p-2">{{ mhs.namaLengkap }}</td>
+                  <td class="p-2 text-center">{{ mhs.semester }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p v-else class="text-body-sm text-on-surface-variant">
+          Tidak ada mahasiswa yang melebihi batas wajar masa studi ({{ activationResult.maxSemesterWajar }} semester).
+        </p>
+      </div>
+      <template #footer>
+        <AppButton @click="closeActivationResult">Tutup</AppButton>
+      </template>
+    </Modal>
   </div>
 </template>

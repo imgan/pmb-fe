@@ -5,7 +5,7 @@ import ComingSoonPanel from '@/components/layout/ComingSoonPanel.vue';
 
 <template>
   <div>
-    <PageHeader title="Cetak Kehadiran Mengajar" subtitle="Cetak laporan kehadiran mengajar dosen." />
-    <ComingSoonPanel icon="event_available" />
+    <PageHeader title="Dashboard" subtitle="Ringkasan modul SIM." />
+    <ComingSoonPanel icon="dashboard" />
   </div>
 </template>

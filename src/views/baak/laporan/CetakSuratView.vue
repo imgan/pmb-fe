@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -15,14 +16,27 @@ import { suratKeteranganApi, type SuratKeteranganPayload } from '@/api/suratKete
 import { mahasiswaApi } from '@/api/mahasiswa';
 import { extractErrorMessage } from '@/api/http';
 import { formatDate } from '@/utils/format';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { openBlob } from '@/utils/download';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { toastError } from '@/utils/swal';
 import { MENU } from '@/constants/menuCodes';
-import type { JenisSurat, SuratKeteranganCetakData } from '@/types/entities';
+import type { JenisSurat, StatusSuratKeterangan, SuratKeteranganCetakData } from '@/types/entities';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.LAPORAN_CETAK_SURAT_MANAGEMENT);
+
+const STATUS_LABELS: Record<StatusSuratKeterangan, string> = {
+  DIAJUKAN: 'Diajukan Mahasiswa',
+  DISETUJUI: 'Disetujui',
+  DITOLAK: 'Ditolak',
+};
+const STATUS_VARIANT: Record<StatusSuratKeterangan, 'success' | 'warning' | 'danger' | 'neutral'> = {
+  DIAJUKAN: 'warning',
+  DISETUJUI: 'success',
+  DITOLAK: 'danger',
+};
+const statusOptions = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }));
 
 const JENIS_SURAT_OPTIONS: { value: JenisSurat; label: string }[] = [
   { value: 'AKTIF_KULIAH', label: 'Surat Keterangan Aktif Kuliah' },
@@ -70,6 +84,11 @@ const {
   remove: suratKeteranganApi.remove,
 });
 
+// Datang dari notifikasi bell (klik salah satu pengajuan) membawa NIM lewat query string
+// supaya daftar langsung tersaring ke mahasiswa yang bersangkutan.
+const route = useRoute();
+if (typeof route.query.search === 'string') search.value = route.query.search;
+
 fetchItems();
 
 const columns: DataTableColumn[] = [
@@ -79,6 +98,7 @@ const columns: DataTableColumn[] = [
   { key: 'tanggalInput', label: 'Tanggal Input', sortable: true },
   { key: 'nomorSurat', label: 'Nomor Surat', sortable: true },
   { key: 'alasan', label: 'Alasan' },
+  { key: 'status', label: 'Status', align: 'center' },
 ];
 
 interface SuratFormState {
@@ -86,6 +106,7 @@ interface SuratFormState {
   jenisSurat: JenisSurat | '';
   nomorSurat: string;
   tanggalInput: string;
+  status: StatusSuratKeterangan;
   semester: number | '';
   alasan: string;
   namaInstansi: string;
@@ -105,6 +126,7 @@ const emptyForm = (): SuratFormState => ({
   jenisSurat: '',
   nomorSurat: '',
   tanggalInput: todayIso(),
+  status: 'DISETUJUI',
   semester: '',
   alasan: '',
   namaInstansi: '',
@@ -134,6 +156,7 @@ watch(
       form.jenisSurat = editing.jenisSurat;
       form.nomorSurat = editing.nomorSurat ?? '';
       form.tanggalInput = editing.tanggalInput.slice(0, 10);
+      form.status = editing.status;
       form.semester = editing.semester ?? '';
       form.alasan = editing.alasan ?? '';
       form.namaInstansi = editing.namaInstansi ?? '';
@@ -164,6 +187,7 @@ const handleSubmit = async () => {
       jenisSurat: form.jenisSurat as JenisSurat,
       nomorSurat: form.nomorSurat.trim() || null,
       tanggalInput: form.tanggalInput,
+      status: form.status,
       semester: form.semester === '' ? null : Number(form.semester),
       alasan: form.alasan.trim() || null,
       namaInstansi: form.namaInstansi.trim() || null,
@@ -224,6 +248,20 @@ const handleCetakPdf = async (id: number) => {
     if (printingId.value === id) printingId.value = null;
   }
 };
+
+// ---- Approve / Tolak ----
+const decidingId = ref<number | null>(null);
+const handleDecide = async (id: number, status: 'DISETUJUI' | 'DITOLAK') => {
+  decidingId.value = id;
+  try {
+    await suratKeteranganApi.update(id, { status });
+    await fetchItems();
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal memperbarui status surat'));
+  } finally {
+    if (decidingId.value === id) decidingId.value = null;
+  }
+};
 </script>
 
 <template>
@@ -260,8 +298,30 @@ const handleCetakPdf = async (id: number) => {
         <template #cell-tanggalInput="{ item }">{{ formatDate(item.tanggalInput) }}</template>
         <template #cell-nomorSurat="{ item }">{{ item.nomorSurat || '-' }}</template>
         <template #cell-alasan="{ item }">{{ item.alasan || '-' }}</template>
+        <template #cell-status="{ item }">
+          <StatusBadge :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANT[item.status]" />
+        </template>
         <template #actions="{ item }">
+          <template v-if="item.status === 'DIAJUKAN' && canUpdate">
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-md bg-success text-white text-label-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+              :disabled="decidingId === item.id"
+              @click="handleDecide(item.id, 'DISETUJUI')"
+            >
+              {{ decidingId === item.id ? 'Memproses...' : 'Approve' }}
+            </button>
+            <button
+              type="button"
+              class="px-2.5 py-1 rounded-md bg-error text-on-error text-label-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+              :disabled="decidingId === item.id"
+              @click="handleDecide(item.id, 'DITOLAK')"
+            >
+              {{ decidingId === item.id ? 'Memproses...' : 'Tolak' }}
+            </button>
+          </template>
           <button
+            v-else-if="item.status === 'DISETUJUI'"
             type="button"
             class="px-2.5 py-1 rounded-md bg-primary text-on-primary text-label-sm hover:opacity-90 transition-opacity disabled:opacity-60"
             :disabled="printingId === item.id"
@@ -326,6 +386,7 @@ const handleCetakPdf = async (id: number) => {
           <DateInput v-model="form.tanggalInput" label="Tanggal Input" required :error="errors.tanggalInput" />
           <TextInput v-model.number="form.semester" label="Semester" type="number" />
         </div>
+        <SelectInput v-model="form.status" label="Status" :options="statusOptions" />
         <TextInput v-model="form.nomorSurat" label="Nomor Surat" placeholder="Kosongkan untuk diisi otomatis saat dicetak" />
         <TextareaInput v-model="form.alasan" label="Alasan" :rows="2" placeholder="mis. Syarat pembuatan izin belajar PNS" />
 

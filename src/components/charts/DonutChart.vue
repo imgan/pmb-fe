@@ -7,7 +7,9 @@ export interface DonutDatum {
   color?: string;
 }
 
-const props = defineProps<{ data: DonutDatum[] }>();
+const props = withDefaults(defineProps<{ data: DonutDatum[]; formatValue?: (value: number) => string }>(), {
+  formatValue: (value: number) => String(value),
+});
 
 /** First three slots of the validated categorical palette (all-pairs safe in both modes). */
 const PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#4a3aa7'];
@@ -61,20 +63,20 @@ const hovered = ref<number | null>(null);
           :opacity="hovered === null || hovered === i ? 1 : 0.4"
           class="transition-opacity duration-150 cursor-pointer"
           tabindex="0"
-          :aria-label="`${seg.label}: ${seg.value} (${seg.pct.toFixed(0)}%)`"
+          :aria-label="`${seg.label}: ${formatValue(seg.value)} (${seg.pct.toFixed(0)}%)`"
           @mouseenter="hovered = i"
           @mouseleave="hovered = null"
           @focus="hovered = i"
           @blur="hovered = null"
         />
       </svg>
-      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+      <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-6">
         <template v-if="hovered !== null">
-          <span class="font-bold text-headline-md text-on-surface">{{ segments[hovered].value }}</span>
+          <span class="font-bold text-body-md text-on-surface text-center leading-tight">{{ formatValue(segments[hovered].value) }}</span>
           <span class="text-label-sm text-on-surface-variant text-center px-4">{{ segments[hovered].label }}</span>
         </template>
         <template v-else>
-          <span class="font-bold text-headline-md text-on-surface">{{ total }}</span>
+          <span class="font-bold text-body-md text-on-surface text-center leading-tight">{{ formatValue(total) }}</span>
           <span class="text-label-sm text-on-surface-variant">Total</span>
         </template>
       </div>
@@ -94,7 +96,7 @@ const hovered = ref<number | null>(null);
       >
         <span class="w-3 h-3 rounded-sm shrink-0" :style="{ backgroundColor: seg.color }" />
         <span class="text-on-surface flex-1">{{ seg.label }}</span>
-        <span class="font-semibold text-on-surface tabular-nums">{{ seg.value }}</span>
+        <span class="font-semibold text-on-surface tabular-nums">{{ formatValue(seg.value) }}</span>
         <span class="text-on-surface-variant text-label-sm tabular-nums w-10 text-right">{{ seg.pct.toFixed(0) }}%</span>
       </li>
     </ul>

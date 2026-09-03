@@ -1,13 +1,14 @@
 import { http } from './http';
 import { createCrudApi } from './crudFactory';
 import type { ApiResponse } from '@/types/common';
-import type { JenisSurat, SuratKeterangan, SuratKeteranganCetakData } from '@/types/entities';
+import type { JenisSurat, StatusSuratKeterangan, SuratKeterangan, SuratKeteranganCetakData } from '@/types/entities';
 
 export interface SuratKeteranganPayload {
   mahasiswaId: number;
   jenisSurat: JenisSurat;
   nomorSurat?: string | null;
   tanggalInput: string;
+  status?: StatusSuratKeterangan;
   semester?: number | null;
   alasan?: string | null;
   namaInstansi?: string | null;

@@ -36,6 +36,34 @@ export const formatRupiahNumber = (value: number | null | undefined): string => 
   return value.toLocaleString('id-ID');
 };
 
+/** Formats a number as IDR currency (e.g. 500000 -> "Rp500.000"). */
+export const formatCurrencyIdr = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) return '-';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+/** Formats a number as compact IDR currency for tight spaces like chart axes/labels (e.g. 31300000 -> "Rp 31,3 jt"). */
+export const formatCurrencyCompactIdr = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) return '-';
+  return new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(value);
+};
+
+/** Formats a number as IDR currency for editable inputs, returning '' instead of '-' when empty (e.g. 500000 -> "Rp500.000"). */
+export const formatCurrencyInputIdr = (value: number | null | undefined): string => {
+  if (value === null || value === undefined || Number.isNaN(value)) return '';
+  return formatCurrencyIdr(value);
+};
+
 /** Strips non-digit characters from a formatted currency input string, returning a plain number (or null if empty). */
 export const parseRupiahInput = (value: string): number | null => {
   const digitsOnly = value.replace(/[^0-9]/g, '');

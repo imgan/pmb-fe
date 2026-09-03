@@ -4,13 +4,15 @@ import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import SearchableSelect from '@/components/ui/SearchableSelect.vue';
+import SearchInput from '@/components/ui/SearchInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import RowActions from '@/components/ui/RowActions.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
-import { krsApi, type KrsPayload } from '@/api/krs';
+import { krsApi, type KrsPayload, type KuotaSks } from '@/api/krs';
 import { mahasiswaApi } from '@/api/mahasiswa';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
 import { jadwalKuliahApi } from '@/api/jadwalKuliah';
@@ -37,10 +39,15 @@ const VARIANT_BY_STATUS: Record<StatusKrs, 'success' | 'warning' | 'danger' | 'n
 };
 const statusVariant = (s: StatusKrs) => VARIANT_BY_STATUS[s];
 
+const tahunAjaranFilter = ref<number | ''>('');
+const semesterFilter = ref<number | ''>('');
+const statusFilter = ref<StatusKrs | ''>('');
+
 const {
   items,
   meta,
   page,
+  search,
   loading,
   error,
   deleteTarget,
@@ -55,9 +62,22 @@ const {
   requestDelete,
   cancelDelete,
   confirmDelete,
-} = useCrudPage({ fetchList: krsApi.list, remove: krsApi.remove });
+} = useCrudPage({
+  fetchList: krsApi.list,
+  remove: krsApi.remove,
+  extraQuery: () => ({
+    tahunAjaranId: tahunAjaranFilter.value || undefined,
+    semester: semesterFilter.value || undefined,
+    status: statusFilter.value || undefined,
+  }),
+});
 
 fetchItems();
+
+const onFilterChange = () => {
+  page.value = 1;
+  fetchItems();
+};
 
 const columns: DataTableColumn[] = [
   { key: 'mahasiswa', label: 'Mahasiswa' },
@@ -91,13 +111,19 @@ const formError = ref<string | null>(null);
 const errors = reactive<Record<string, string>>({});
 const submitting = ref(false);
 const loadingKelasKuliah = ref(false);
+const kuota = ref<KuotaSks | null>(null);
 
 const loadKelasKuliahOptions = async () => {
+  if (!form.tahunAjaranId || !form.semester) {
+    kelasKuliahOptions.value = [];
+    return;
+  }
   loadingKelasKuliah.value = true;
   try {
     const result = await jadwalKuliahApi.list({
       limit: 200,
-      tahunAjaranId: form.tahunAjaranId || undefined,
+      tahunAjaranId: form.tahunAjaranId,
+      semester: form.semester,
     });
     kelasKuliahOptions.value = result.data.map((j) => ({
       value: j.id,
@@ -109,13 +135,26 @@ const loadKelasKuliahOptions = async () => {
   }
 };
 
-watch(() => form.tahunAjaranId, loadKelasKuliahOptions);
-
-const toggleKelasKuliah = (id: number) => {
-  const idx = form.jadwalKuliahIds.indexOf(id);
-  if (idx === -1) form.jadwalKuliahIds.push(id);
-  else form.jadwalKuliahIds.splice(idx, 1);
+// null maxSks berarti mahasiswa belum punya riwayat nilai semester sebelumnya (mis. semester
+// 1), jadi belum bisa dihitung dan tidak dibatasi — lihat pmb-be/src/utils/sksQuota.js.
+const loadKuota = async () => {
+  if (!form.mahasiswaId || !form.semester) {
+    kuota.value = null;
+    return;
+  }
+  try {
+    kuota.value = await krsApi.kuota(Number(form.mahasiswaId), Number(form.semester));
+  } catch {
+    kuota.value = null;
+  }
 };
+
+// Kelas kuliah yang bisa dipilih HARUS difilter juga per semester, bukan cuma tahun ajaran —
+// kalau tidak, admin BAAK bisa memasukkan mata kuliah semester lain ke KRS, sehingga datanya
+// tidak sinkron dengan yang mahasiswa lihat di modul KRS mereka sendiri (yang memang difilter
+// per semester lewat listJadwalTersedia).
+watch(() => [form.tahunAjaranId, form.semester] as const, loadKelasKuliahOptions);
+watch(() => [form.mahasiswaId, form.semester] as const, loadKuota);
 
 const selectedTotalSks = computed(() =>
   kelasKuliahOptions.value
@@ -123,18 +162,35 @@ const selectedTotalSks = computed(() =>
     .reduce((sum, o) => sum + (o.sks ?? 0), 0)
 );
 
+const isOverQuota = computed(() => kuota.value?.maxSks != null && selectedTotalSks.value > kuota.value.maxSks);
+
+// Dicek juga di server saat submit (assertSksQuota) — pengecekan di sini semata untuk
+// mencegah human error/penyalahgunaan saat admin BAAK memasukkan KRS mahasiswa secara manual,
+// bukan pengganti validasi backend.
+const wouldExceedQuota = (opt: { value: number; sks: number | null }) =>
+  kuota.value?.maxSks != null &&
+  !form.jadwalKuliahIds.includes(opt.value) &&
+  selectedTotalSks.value + (opt.sks ?? 0) > kuota.value.maxSks;
+
+const toggleKelasKuliah = (opt: { value: number; sks: number | null }) => {
+  if (wouldExceedQuota(opt)) return;
+  const idx = form.jadwalKuliahIds.indexOf(opt.value);
+  if (idx === -1) form.jadwalKuliahIds.push(opt.value);
+  else form.jadwalKuliahIds.splice(idx, 1);
+};
+
 watch(
   () => [isFormOpen.value, editingItem.value] as const,
   ([open, editing]) => {
     if (!open) return;
     Object.keys(errors).forEach((k) => delete errors[k]);
     formError.value = null;
+    kuota.value = null;
     form.mahasiswaId = editing?.mahasiswaId ?? '';
     form.semester = editing?.semester ?? 1;
     form.tahunAjaranId = editing?.tahunAjaranId ?? '';
     form.status = editing?.status ?? 'DRAFT';
     form.jadwalKuliahIds = (editing?.detailList ?? []).map((d) => d.jadwalKuliahId);
-    if (form.tahunAjaranId) loadKelasKuliahOptions();
   },
   { immediate: true }
 );
@@ -145,6 +201,10 @@ const handleSubmit = async () => {
   if (!form.semester) errors.semester = 'Semester wajib diisi';
   if (!form.tahunAjaranId) errors.tahunAjaranId = 'Tahun ajaran wajib dipilih';
   if (Object.keys(errors).length > 0) return;
+  if (isOverQuota.value) {
+    formError.value = `Total SKS yang dipilih (${selectedTotalSks.value}) melebihi kuota maksimal ${kuota.value?.maxSks} SKS`;
+    return;
+  }
 
   submitting.value = true;
   formError.value = null;
@@ -179,6 +239,31 @@ const handleSubmit = async () => {
     </PageHeader>
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+      <div class="p-4 border-b border-outline-variant flex flex-col gap-3 bg-surface-bright">
+        <SearchInput v-model="search" placeholder="Cari NIM atau nama mahasiswa..." />
+        <div class="flex flex-col md:flex-row gap-3">
+          <div class="w-full md:w-52">
+            <SelectInput
+              v-model="tahunAjaranFilter"
+              placeholder="Semua Tahun Ajaran"
+              :options="tahunAjaranOptions"
+              @change="onFilterChange"
+            />
+          </div>
+          <div class="w-full md:w-40">
+            <TextInput v-model.number="semesterFilter" type="number" placeholder="Semester" @change="onFilterChange" />
+          </div>
+          <div class="w-full md:w-44">
+            <SelectInput
+              v-model="statusFilter"
+              placeholder="Semua Status"
+              :options="STATUS_OPTIONS"
+              @change="onFilterChange"
+            />
+          </div>
+        </div>
+      </div>
+
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
       <DataTable :columns="columns" :items="items" :loading="loading" empty-message="Belum ada data KRS">
@@ -204,11 +289,12 @@ const handleSubmit = async () => {
           {{ formError }}
         </div>
 
-        <SelectInput
+        <SearchableSelect
           v-model="form.mahasiswaId"
           label="Mahasiswa"
           required
           placeholder="Pilih mahasiswa..."
+          search-placeholder="Cari NIM atau nama mahasiswa..."
           :options="mahasiswaOptions"
           :disabled="!!editingItem"
           :error="errors.mahasiswaId"
@@ -229,7 +315,12 @@ const handleSubmit = async () => {
 
         <label class="block">
           <span class="block font-medium text-label-md text-on-surface mb-2">
-            Kelas Kuliah <span class="text-on-surface-variant font-normal">(Total {{ selectedTotalSks }} SKS)</span>
+            Kelas Kuliah
+            <span :class="isOverQuota ? 'text-error font-semibold' : 'text-on-surface-variant font-normal'">
+              (Total {{ selectedTotalSks }} SKS<template v-if="kuota?.maxSks != null">
+                dari maksimal {{ kuota.maxSks }} SKS &middot; IP semester lalu {{ kuota.ipSemesterSebelumnya?.toFixed(2) }}</template
+              >)
+            </span>
           </span>
           <div class="border border-outline-variant rounded-md max-h-56 overflow-y-auto p-2 space-y-1">
             <p v-if="loadingKelasKuliah" class="text-body-sm text-on-surface-variant px-2 py-1.5">Memuat kelas kuliah...</p>
@@ -237,17 +328,19 @@ const handleSubmit = async () => {
               <label
                 v-for="opt in kelasKuliahOptions"
                 :key="opt.value"
-                class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-container cursor-pointer text-body-sm text-on-surface"
+                class="flex items-center gap-2 px-2 py-1.5 rounded text-body-sm text-on-surface"
+                :class="wouldExceedQuota(opt) ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-surface-container'"
               >
                 <input
                   type="checkbox"
                   :checked="form.jadwalKuliahIds.includes(opt.value)"
-                  @change="toggleKelasKuliah(opt.value)"
+                  :disabled="wouldExceedQuota(opt)"
+                  @change="toggleKelasKuliah(opt)"
                 />
                 {{ opt.label }} <span class="text-on-surface-variant">[{{ opt.sks ?? 0 }} sks]</span>
               </label>
               <p v-if="kelasKuliahOptions.length === 0" class="text-body-sm text-on-surface-variant px-2 py-1.5">
-                Pilih Tahun Ajaran untuk menampilkan kelas kuliah yang tersedia
+                Pilih Tahun Ajaran dan Semester untuk menampilkan kelas kuliah yang tersedia
               </p>
             </template>
           </div>
@@ -255,7 +348,9 @@ const handleSubmit = async () => {
       </form>
       <template #footer>
         <AppButton variant="secondary" @click="closeForm">Batal</AppButton>
-        <AppButton :disabled="submitting" @click="handleSubmit">{{ submitting ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+        <AppButton :disabled="submitting || isOverQuota" @click="handleSubmit">
+          {{ submitting ? 'Menyimpan...' : 'Simpan' }}
+        </AppButton>
       </template>
     </Modal>
 

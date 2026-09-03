@@ -7,10 +7,12 @@ import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput, { type SelectOption } from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import TextareaInput from '@/components/ui/TextareaInput.vue';
+import DateInput from '@/components/ui/DateInput.vue';
 import RowActions from '@/components/ui/RowActions.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
+import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { kurikulumApi, type KurikulumPayload } from '@/api/kurikulum';
 import { jurusanApi } from '@/api/jurusan';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
@@ -164,6 +166,10 @@ interface FormState {
   kompIlmuKomputer: string;
   mataKuliahMinat: string;
   muatanMataKuliah: string;
+  metodePembelajaran: string;
+  tanggalMulaiEfektif: string;
+  tanggalAkhirEfektif: string;
+  idMatkul: string;
   semester: number | '';
 }
 
@@ -184,6 +190,10 @@ const emptyForm = (): FormState => ({
   kompIlmuKomputer: '',
   mataKuliahMinat: '',
   muatanMataKuliah: '',
+  metodePembelajaran: '',
+  tanggalMulaiEfektif: '',
+  tanggalAkhirEfektif: '',
+  idMatkul: '',
   semester: '',
 });
 
@@ -217,6 +227,10 @@ watch(
       form.kompIlmuKomputer = item.kompIlmuKomputer ?? '';
       form.mataKuliahMinat = item.mataKuliahMinat ?? '';
       form.muatanMataKuliah = item.muatanMataKuliah ?? '';
+      form.metodePembelajaran = item.metodePembelajaran ?? '';
+      form.tanggalMulaiEfektif = item.tanggalMulaiEfektif?.slice(0, 10) ?? '';
+      form.tanggalAkhirEfektif = item.tanggalAkhirEfektif?.slice(0, 10) ?? '';
+      form.idMatkul = item.idMatkul ?? '';
       form.semester = item.semester ?? '';
     }
   },
@@ -249,6 +263,10 @@ const handleSubmit = async () => {
       kompIlmuKomputer: form.kompIlmuKomputer || null,
       mataKuliahMinat: form.mataKuliahMinat || null,
       muatanMataKuliah: form.muatanMataKuliah.trim() || null,
+      metodePembelajaran: form.metodePembelajaran.trim() || null,
+      tanggalMulaiEfektif: form.tanggalMulaiEfektif || null,
+      tanggalAkhirEfektif: form.tanggalAkhirEfektif || null,
+      idMatkul: form.idMatkul.trim() || null,
       semester: form.semester === '' ? null : Number(form.semester),
     };
     if (editingItem.value) {
@@ -268,8 +286,17 @@ const handleSubmit = async () => {
 <template>
   <div>
     <PageHeader title="Master Kurikulum" subtitle="Master data kurikulum / mata kuliah.">
-      <template v-if="canCreate" #actions>
-        <AppButton icon="add" @click="openCreate">Tambah Data</AppButton>
+      <template #actions>
+        <ImportExportButtons
+          :export-fn="kurikulumApi.exportExcel"
+          :import-fn="kurikulumApi.importExcel"
+          :template-fn="kurikulumApi.importTemplate"
+          :can-import="canCreate"
+          filename="kurikulum.xlsx"
+          template-filename="template-import-kurikulum.xlsx"
+          @imported="fetchItems"
+        />
+        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Data</AppButton>
       </template>
     </PageHeader>
 
@@ -391,6 +418,15 @@ const handleSubmit = async () => {
         </div>
 
         <TextInput v-model="form.muatanMataKuliah" label="Muatan Matakuliah" placeholder="Remark..." />
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TextInput v-model="form.metodePembelajaran" label="Metode Pembelajaran" placeholder="mis. Ceramah, Diskusi, Praktikum" />
+          <TextInput v-model="form.idMatkul" label="Id Matkul" />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <DateInput v-model="form.tanggalMulaiEfektif" label="Tgl Mulai Efektif" />
+          <DateInput v-model="form.tanggalAkhirEfektif" label="Tgl Akhir Efektif" />
+        </div>
       </form>
       <template #footer>
         <AppButton variant="secondary" @click="closeForm">Batal</AppButton>

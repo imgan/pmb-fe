@@ -5,7 +5,7 @@ import ComingSoonPanel from '@/components/layout/ComingSoonPanel.vue';
 
 <template>
   <div>
-    <PageHeader title="Ijazah & Transkrip" subtitle="Cetak laporan ijazah dan transkrip nilai mahasiswa." />
-    <ComingSoonPanel icon="workspace_premium" />
+    <PageHeader title="Feeder" subtitle="Integrasi pelaporan Feeder Dikti." />
+    <ComingSoonPanel icon="menu_book" />
   </div>
 </template>

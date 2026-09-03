@@ -11,13 +11,19 @@ const props = withDefaults(
     data: LineDatum[];
     color?: string;
     valueSuffix?: string;
+    /** Formats the exact value shown in the hover tooltip. Defaults to the raw number. */
+    formatValue?: (value: number) => string;
+    /** Formats the (rounded) grid tick values on the y-axis; falls back to formatValue. */
+    formatAxisValue?: (value: number) => string;
   }>(),
-  { color: '#2a78d6', valueSuffix: '' }
+  { color: '#2a78d6', valueSuffix: '', formatValue: (value: number) => String(value) }
 );
+
+const axisFormatter = computed(() => props.formatAxisValue ?? props.formatValue);
 
 const width = 600;
 const height = 260;
-const padding = { top: 24, right: 16, bottom: 32, left: 32 };
+const padding = { top: 24, right: 16, bottom: 32, left: 52 };
 const plotW = width - padding.left - padding.right;
 const plotH = height - padding.top - padding.bottom;
 
@@ -77,7 +83,7 @@ const tooltipStyle = computed(() => {
           stroke="#e1e0d9"
           stroke-width="1"
         />
-        <text :x="padding.left - 8" :y="pointY(g) + 3" text-anchor="end" font-size="10" fill="#898781">{{ g }}</text>
+        <text :x="padding.left - 8" :y="pointY(g) + 3" text-anchor="end" font-size="10" fill="#898781">{{ axisFormatter(g) }}</text>
       </g>
 
       <path :d="areaPath" :fill="color" fill-opacity="0.12" stroke="none" />
@@ -94,7 +100,7 @@ const tooltipStyle = computed(() => {
         stroke-width="1.5"
         class="transition-all duration-150 cursor-pointer"
         tabindex="0"
-        :aria-label="`${d.label}: ${d.value}${valueSuffix}`"
+        :aria-label="`${d.label}: ${formatValue(d.value)}${valueSuffix}`"
         @mouseenter="hovered = i"
         @mouseleave="hovered = null"
         @focus="hovered = i"
@@ -119,7 +125,7 @@ const tooltipStyle = computed(() => {
       class="absolute -translate-x-1/2 -translate-y-full -mt-2 px-3 py-2 rounded-md bg-inverse-surface text-inverse-on-surface text-label-sm shadow-lg pointer-events-none whitespace-nowrap z-10"
       :style="tooltipStyle"
     >
-      <span class="font-semibold">{{ data[hovered].value }}{{ valueSuffix }}</span>
+      <span class="font-semibold">{{ formatValue(data[hovered].value) }}{{ valueSuffix }}</span>
       <span class="opacity-80"> · {{ data[hovered].label }}</span>
     </div>
   </div>

@@ -17,12 +17,13 @@ const modules: ModuleTile[] = [
   { key: 'baak', label: 'BAAK', icon: 'domain', available: true },
   { key: 'sdi', label: 'SDI', icon: 'groups', available: true },
   { key: 'prodi', label: 'Prodi', icon: 'auto_stories', available: true },
-  { key: 'keuangan', label: 'Keuangan', icon: 'payments', available: false },
+  { key: 'keuangan', label: 'Keuangan', icon: 'payments', available: true },
+  { key: 'sim', label: 'SIM', icon: 'monitoring', available: true },
   { key: 'dosen', label: 'Dosen', icon: 'co_present', available: false },
   { key: 'mahasiswa', label: 'Mahasiswa', icon: 'group', available: false },
 ];
 
-type ModuleKey = 'pmb' | 'baak' | 'sdi' | 'prodi';
+type ModuleKey = 'pmb' | 'baak' | 'sdi' | 'prodi' | 'keuangan' | 'sim';
 
 const step = ref<'modules' | 'login'>('modules');
 const selectedModule = ref<ModuleKey>('pmb');
@@ -46,6 +47,12 @@ const consoleInfo = computed(() => {
   if (selectedModule.value === 'prodi') {
     return { icon: 'auto_stories', title: 'Prodi Console', subtitle: 'Program Studi' };
   }
+  if (selectedModule.value === 'keuangan') {
+    return { icon: 'payments', title: 'Keuangan Console', subtitle: 'Manajemen Keuangan' };
+  }
+  if (selectedModule.value === 'sim') {
+    return { icon: 'monitoring', title: 'SIM Console', subtitle: 'Sistem Informasi Manajemen Akademik' };
+  }
   return { icon: 'school', title: 'Admin Console', subtitle: 'University PMB System' };
 });
 
@@ -68,6 +75,8 @@ const handleSubmit = async () => {
       baak: '/baak/dashboard',
       sdi: '/sdi/dashboard',
       prodi: '/prodi/beranda',
+      keuangan: '/keuangan/dashboard',
+      sim: '/sim/dashboard',
     };
     const fallback = FALLBACK_BY_MODULE[selectedModule.value];
     const redirect = (route.query.redirect as string) || fallback;

@@ -5,7 +5,7 @@ import ComingSoonPanel from '@/components/layout/ComingSoonPanel.vue';
 
 <template>
   <div>
-    <PageHeader title="Cetak Realisasi" subtitle="Cetak laporan realisasi perkuliahan." />
-    <ComingSoonPanel icon="fact_check" />
+    <PageHeader title="Laporan KTI/Skripsi" subtitle="Rekap pembayaran KTI/Skripsi mahasiswa." />
+    <ComingSoonPanel icon="menu_book" />
   </div>
 </template>

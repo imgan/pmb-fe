@@ -22,7 +22,7 @@ const columns: DataTableColumn[] = [
   { key: 'grade', label: 'Grade', align: 'center' },
 ];
 
-const rows = () => (detail.value?.roster ?? []).map((item, index) => ({ ...item, no: index + 1 }));
+const rows = () => (detail.value?.roster ?? []).map((item, index) => ({ ...item, id: item.mahasiswaId, no: index + 1 }));
 
 const load = async () => {
   loading.value = true;

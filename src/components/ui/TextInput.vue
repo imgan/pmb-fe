@@ -8,6 +8,9 @@ withDefaults(
     required?: boolean;
     disabled?: boolean;
     hint?: string;
+    min?: number | string;
+    max?: number | string;
+    step?: number | string;
   }>(),
   { type: 'text', required: false, disabled: false }
 );
@@ -25,6 +28,9 @@ const model = defineModel<string | number | null>({ default: '' });
       :type="type"
       :placeholder="placeholder"
       :disabled="disabled"
+      :min="min"
+      :max="max"
+      :step="step"
       class="w-full px-3 py-2 border rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       :class="
         error

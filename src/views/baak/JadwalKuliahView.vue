@@ -5,6 +5,7 @@ import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import RowActions from '@/components/ui/RowActions.vue';
@@ -16,24 +17,44 @@ import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { jadwalKuliahApi, type JadwalKuliahPayload } from '@/api/jadwalKuliah';
 import { dosenApi } from '@/api/dosen';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { mataKuliahApi } from '@/api/mataKuliah';
+import { kurikulumApi } from '@/api/kurikulum';
 import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
-import type { HariKuliah } from '@/types/entities';
+import type { HariKuliah, MataKuliah, Kurikulum } from '@/types/entities';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.JADWAL_KULIAH_MANAGEMENT);
 
 const dosenOptions = ref<{ value: number; label: string }[]>([]);
 const tahunAjaranAktifOptions = ref<{ value: number; label: string }[]>([]);
+const mataKuliahList = ref<MataKuliah[]>([]);
+const mataKuliahOptions = ref<{ value: string; label: string }[]>([]);
+const kurikulumList = ref<Kurikulum[]>([]);
 onMounted(async () => {
-  const [dosenResult, tahunAjaranResult] = await Promise.all([
+  const [dosenResult, tahunAjaranResult, mataKuliahResult, kurikulumResult] = await Promise.all([
     dosenApi.list({ limit: 200 }),
     tahunAjaranApi.list({ limit: 100, isActive: true }),
+    mataKuliahApi.list({ limit: 500 }),
+    kurikulumApi.list({ limit: 1000 }),
   ]);
   dosenOptions.value = dosenResult.data.map((d) => ({ value: d.id, label: d.namaLengkap }));
   tahunAjaranAktifOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: t.nama }));
+  mataKuliahList.value = mataKuliahResult.data;
+  mataKuliahOptions.value = mataKuliahResult.data.map((mk) => ({ value: mk.kodeMk, label: `${mk.kodeMk} - ${mk.namaMk}` }));
+  kurikulumList.value = kurikulumResult.data;
 });
+
+const normalizeKode = (kode: string) => kode.trim().toLowerCase();
+
+const findSemester = (kode: string, tahunAjaranId: number | ''): number | null => {
+  const target = normalizeKode(kode);
+  const candidates = kurikulumList.value.filter((k) => normalizeKode(k.kode) === target);
+  if (candidates.length === 0) return null;
+  const matchByTahun = tahunAjaranId ? candidates.find((k) => k.tahunAjaranId === tahunAjaranId) : undefined;
+  return (matchByTahun ?? candidates[0]).semester;
+};
 
 const HARI_OPTIONS: { value: HariKuliah; label: string }[] = [
   { value: 'SENIN', label: 'Senin' },
@@ -109,6 +130,7 @@ interface JadwalKuliahFormState {
   kodeMataKuliah: string;
   namaMataKuliah: string;
   sks: number | '';
+  semester: number | '';
   dosenKordinatorId: number | '';
   tahunAjaranId: number | '';
   dosenPengampuIds: number[];
@@ -124,6 +146,7 @@ const emptyForm = (): JadwalKuliahFormState => ({
   kodeMataKuliah: '',
   namaMataKuliah: '',
   sks: '',
+  semester: '',
   dosenKordinatorId: '',
   tahunAjaranId: '',
   dosenPengampuIds: [],
@@ -151,6 +174,7 @@ watch(
       form.kodeMataKuliah = editing.kodeMataKuliah;
       form.namaMataKuliah = editing.namaMataKuliah;
       form.sks = editing.sks ?? '';
+      form.semester = editing.semester ?? '';
       form.dosenKordinatorId = editing.dosenKordinatorId;
       form.tahunAjaranId = editing.tahunAjaranId ?? '';
       form.dosenPengampuIds = editing.dosenPengampu?.map((d) => d.id) ?? [];
@@ -162,6 +186,27 @@ watch(
     }
   },
   { immediate: true }
+);
+
+watch(
+  () => form.kodeMataKuliah,
+  (kode) => {
+    if (!kode) return;
+    const found = mataKuliahList.value.find((mk) => mk.kodeMk === kode);
+    if (found) {
+      form.namaMataKuliah = found.namaMk;
+      form.sks = found.sks;
+    }
+    form.semester = findSemester(kode, form.tahunAjaranId) ?? '';
+  }
+);
+
+watch(
+  () => form.tahunAjaranId,
+  (tahunAjaranId) => {
+    if (!form.kodeMataKuliah) return;
+    form.semester = findSemester(form.kodeMataKuliah, tahunAjaranId) ?? '';
+  }
 );
 
 const togglePengampu = (dosenId: number) => {
@@ -193,6 +238,7 @@ const handleSubmit = async () => {
       kodeMataKuliah: form.kodeMataKuliah.trim(),
       namaMataKuliah: form.namaMataKuliah.trim(),
       sks: form.sks === '' ? null : Number(form.sks),
+      semester: form.semester === '' ? null : Number(form.semester),
       dosenKordinatorId: Number(form.dosenKordinatorId),
       tahunAjaranId: Number(form.tahunAjaranId),
       dosenPengampuIds: form.dosenPengampuIds,
@@ -291,18 +337,30 @@ const handleSubmit = async () => {
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model="form.kelas" label="Kelas" required placeholder="mis. TI4AM" :error="errors.kelas" />
-          <TextInput v-model.number="form.sks" label="SKS" type="number" />
+          <TextInput v-model.number="form.sks" label="SKS" type="number" disabled />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="form.kodeMataKuliah" label="Kode Mata Kuliah" required :error="errors.kodeMataKuliah" />
-          <TextInput v-model="form.namaMataKuliah" label="Mata Kuliah" required :error="errors.namaMataKuliah" />
+          <SearchableSelect
+            v-model="form.kodeMataKuliah"
+            label="Kode Mata Kuliah"
+            required
+            placeholder="Pilih kode mata kuliah..."
+            search-placeholder="Cari kode/nama mata kuliah..."
+            :options="mataKuliahOptions"
+            :error="errors.kodeMataKuliah"
+          />
+          <TextInput v-model="form.namaMataKuliah" label="Mata Kuliah" required disabled :error="errors.namaMataKuliah" />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SelectInput
+          <TextInput v-model.number="form.semester" label="Semester" type="number" disabled />
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SearchableSelect
             v-model="form.dosenKordinatorId"
             label="Dosen Kordinator"
             required
             placeholder="Pilih dosen kordinator..."
+            search-placeholder="Cari dosen..."
             :options="dosenOptions"
             :error="errors.dosenKordinatorId"
           />

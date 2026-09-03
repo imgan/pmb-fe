@@ -5,7 +5,7 @@ import ComingSoonPanel from '@/components/layout/ComingSoonPanel.vue';
 
 <template>
   <div>
-    <PageHeader title="Cetak Mahasiswa Perkelas" subtitle="Cetak daftar mahasiswa per kelas." />
-    <ComingSoonPanel icon="groups" />
+    <PageHeader title="Lain-Lain" subtitle="Dosen / Lain-Lain" />
+    <ComingSoonPanel icon="grid_view" message="Fitur ini akan segera hadir." />
   </div>
 </template>

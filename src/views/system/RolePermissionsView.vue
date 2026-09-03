@@ -8,12 +8,14 @@ import { permissionsApi, type PermissionAssignment } from '@/api/permissions';
 import { extractErrorMessage } from '@/api/http';
 import type { Menu, ModuleCode, Role } from '@/types/entities';
 
-const MODULE_ORDER: ModuleCode[] = ['pmb', 'baak', 'sdi', 'prodi'];
+const MODULE_ORDER: ModuleCode[] = ['pmb', 'baak', 'sdi', 'prodi', 'keuangan', 'sim'];
 const MODULE_LABELS: Record<ModuleCode, string> = {
   pmb: 'PMB',
   baak: 'BAAK',
   sdi: 'SDI',
   prodi: 'Prodi',
+  keuangan: 'Keuangan',
+  sim: 'SIM',
 };
 
 const props = defineProps<{ id: string }>();

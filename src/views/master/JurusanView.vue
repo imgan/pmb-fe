@@ -12,6 +12,7 @@ import Modal from '@/components/ui/Modal.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import TextareaInput from '@/components/ui/TextareaInput.vue';
 import FileInput from '@/components/ui/FileInput.vue';
+import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { jurusanApi } from '@/api/jurusan';
 import { golonganKelasApi } from '@/api/golonganKelas';
 import { extractErrorMessage } from '@/api/http';
@@ -140,8 +141,17 @@ const handleSubmit = async () => {
 <template>
   <div>
     <PageHeader title="Jurusan" subtitle="Kelola master data jurusan per golongan kelas.">
-      <template v-if="canCreate" #actions>
-        <AppButton icon="add" @click="openCreate">Tambah Jurusan</AppButton>
+      <template #actions>
+        <ImportExportButtons
+          :export-fn="jurusanApi.exportExcel"
+          :import-fn="jurusanApi.importExcel"
+          :template-fn="jurusanApi.importTemplate"
+          :can-import="canCreate"
+          filename="jurusan.xlsx"
+          template-filename="template-import-jurusan.xlsx"
+          @imported="fetchItems"
+        />
+        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Jurusan</AppButton>
       </template>
     </PageHeader>
 

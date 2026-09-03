@@ -5,7 +5,7 @@ import ComingSoonPanel from '@/components/layout/ComingSoonPanel.vue';
 
 <template>
   <div>
-    <PageHeader title="Cetak KHS" subtitle="Cetak Kartu Hasil Studi (KHS) mahasiswa." />
-    <ComingSoonPanel icon="summarize" />
+    <PageHeader title="Laporan Semester Pendek" subtitle="Rekap pembayaran semester pendek mahasiswa." />
+    <ComingSoonPanel icon="event" />
   </div>
 </template>

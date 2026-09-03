@@ -24,6 +24,9 @@ export interface MahasiswaUpdatePayload {
   tahunMasuk?: number;
   tahunAjaranId?: number | null;
   statusMasuk?: StatusMasukMahasiswa;
+  semesterDiakui?: number | null;
+  jumlahSemesterCuti?: number;
+  semesterOverride?: number | null;
   isActive?: boolean;
   statusKeluar?: StatusKeluarMahasiswa | null;
   tanggalKeluar?: string | null;

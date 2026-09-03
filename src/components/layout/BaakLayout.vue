@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useMenuStore } from '@/stores/menu';
 import { materialIcon } from '@/utils/icons';
 import ProfileSettingsModal from '@/components/layout/ProfileSettingsModal.vue';
+import BaakSuratNotificationBell from '@/components/layout/BaakSuratNotificationBell.vue';
 import type { MenuTreeNode } from '@/types/entities';
 
 const authStore = useAuthStore();
@@ -183,6 +184,7 @@ const handleLogout = () => {
       <RouterView />
     </main>
 
+    <BaakSuratNotificationBell />
     <ProfileSettingsModal v-model="isProfileOpen" />
   </div>
 </template>

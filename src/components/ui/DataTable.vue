@@ -13,10 +13,11 @@ withDefaults(
     loading?: boolean;
     emptyMessage?: string;
     showActions?: boolean;
+    actionsAlign?: 'left' | 'right' | 'center';
     sortKey?: string | null;
     sortDir?: 'asc' | 'desc';
   }>(),
-  { loading: false, emptyMessage: 'Tidak ada data', showActions: true, sortKey: null, sortDir: 'asc' }
+  { loading: false, emptyMessage: 'Tidak ada data', showActions: true, actionsAlign: 'right', sortKey: null, sortDir: 'asc' }
 );
 
 const emit = defineEmits<{ sort: [key: string] }>();
@@ -56,7 +57,9 @@ const handleSort = (col: DataTableColumn) => {
               </span>
             </span>
           </th>
-          <th v-if="showActions" class="p-4 font-semibold text-label-md text-primary text-right">Aksi</th>
+          <th v-if="showActions" class="p-4 font-semibold text-label-md text-primary" :class="alignClass(actionsAlign)">
+            Aksi
+          </th>
         </tr>
       </thead>
       <tbody class="divide-y divide-outline-variant text-body-sm text-on-surface">
@@ -76,8 +79,8 @@ const handleSort = (col: DataTableColumn) => {
               {{ (item as Record<string, unknown>)[col.key] }}
             </slot>
           </td>
-          <td v-if="showActions" class="p-4 text-right">
-            <div class="flex justify-end gap-3">
+          <td v-if="showActions" class="p-4" :class="alignClass(actionsAlign)">
+            <div class="flex gap-3" :class="justifyClass(actionsAlign)">
               <slot name="actions" :item="item" />
             </div>
           </td>

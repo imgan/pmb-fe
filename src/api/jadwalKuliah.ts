@@ -8,6 +8,7 @@ export interface JadwalKuliahPayload {
   kodeMataKuliah: string;
   namaMataKuliah: string;
   sks?: number | null;
+  semester?: number | null;
   dosenKordinatorId: number;
   tahunAjaranId: number;
   dosenPengampuIds?: number[];
