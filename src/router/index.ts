@@ -753,6 +753,12 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.PRODI_HABIS_MASA_STUDI_MANAGEMENT },
       },
       {
+        path: 'mahasiswa/evaluasi-studi',
+        name: 'prodi-evaluasi-studi',
+        component: () => import('@/views/prodi/mahasiswa/EvaluasiStudiView.vue'),
+        meta: { menuCode: MENU.PRODI_EVALUASI_STUDI_MANAGEMENT },
+      },
+      {
         path: 'mahasiswa/monitoring-frs',
         name: 'prodi-monitoring-frs',
         component: () => import('@/views/prodi/mahasiswa/MonitoringFrsView.vue'),

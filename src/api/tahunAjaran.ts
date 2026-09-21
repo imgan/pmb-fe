@@ -16,6 +16,7 @@ export interface MahasiswaLebihMasaStudi {
   nim: string;
   namaLengkap: string;
   semester: number;
+  maxSemesterWajar: number;
 }
 
 export interface MahasiswaCutiDiproses {
@@ -28,7 +29,6 @@ export interface MahasiswaCutiDiproses {
 export interface AktivasiTahunAjaranResult {
   tahunAjaran: TahunAjaran;
   totalMahasiswaAktif: number;
-  maxSemesterWajar: number;
   cutiDiproses: MahasiswaCutiDiproses[];
   melebihiMasaStudi: MahasiswaLebihMasaStudi[];
 }

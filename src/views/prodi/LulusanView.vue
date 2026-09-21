@@ -37,6 +37,7 @@ const columns: DataTableColumn[] = [
   { key: 'tahunMasuk', label: 'Tahun Masuk', align: 'center' },
   { key: 'totalSks', label: 'Total SKS', align: 'center' },
   { key: 'ipk', label: 'IPK', align: 'center' },
+  { key: 'predikat', label: 'Predikat', align: 'center' },
   { key: 'skYudisium', label: 'No. SK Yudisium' },
   { key: 'statKuliah', label: 'Stat. Kuliah', align: 'center' },
   { key: 'tahunLulus', label: 'Tahun Lulus', align: 'center' },

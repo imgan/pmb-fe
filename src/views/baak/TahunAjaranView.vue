@@ -323,7 +323,7 @@ const closeActivationResult = () => {
         <div v-if="activationResult.melebihiMasaStudi.length" class="space-y-2">
           <p class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
             {{ activationResult.melebihiMasaStudi.length }} mahasiswa semesternya sudah melebihi batas wajar
-            masa studi ({{ activationResult.maxSemesterWajar }} semester) — perlu ditinjau manual di menu
+            masa studi (D3: 10 semester, D4: 14 semester) — perlu ditinjau manual di menu
             Masa Studi (evaluasi DO, bukan otomatis diubah statusnya).
           </p>
           <div class="border border-outline-variant rounded-md max-h-56 overflow-y-auto">
@@ -333,6 +333,7 @@ const closeActivationResult = () => {
                   <th class="p-2 font-semibold text-on-surface-variant">NIM</th>
                   <th class="p-2 font-semibold text-on-surface-variant">Nama</th>
                   <th class="p-2 font-semibold text-on-surface-variant text-center">Semester</th>
+                  <th class="p-2 font-semibold text-on-surface-variant text-center">Batas Wajar</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-outline-variant">
@@ -340,13 +341,14 @@ const closeActivationResult = () => {
                   <td class="p-2">{{ mhs.nim }}</td>
                   <td class="p-2">{{ mhs.namaLengkap }}</td>
                   <td class="p-2 text-center">{{ mhs.semester }}</td>
+                  <td class="p-2 text-center">{{ mhs.maxSemesterWajar }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
         <p v-else class="text-body-sm text-on-surface-variant">
-          Tidak ada mahasiswa yang melebihi batas wajar masa studi ({{ activationResult.maxSemesterWajar }} semester).
+          Tidak ada mahasiswa yang melebihi batas wajar masa studi (D3: 10 semester, D4: 14 semester).
         </p>
       </div>
       <template #footer>

@@ -12,6 +12,7 @@ import { biodataMahasiswaApi } from '@/api/biodataMahasiswa';
 import { mahasiswaApi, type MahasiswaBiodataPayload } from '@/api/mahasiswa';
 import { extractErrorMessage } from '@/api/http';
 import { toastError, toastSuccess } from '@/utils/swal';
+import { formatDate } from '@/utils/format';
 import type { BiodataMahasiswaItem, StatusMasukMahasiswa } from '@/types/entities';
 import type { PagingMeta } from '@/types/common';
 
@@ -59,9 +60,11 @@ const columns: DataTableColumn[] = [
   { key: 'no', label: 'No', align: 'center' },
   { key: 'nim', label: 'NIM' },
   { key: 'namaLengkap', label: 'Nama lengkap' },
-  { key: 'hp', label: 'HP' },
+  { key: 'jenisKelamin', label: 'JK', align: 'center' },
+  { key: 'tempatTanggalLahir', label: 'Tempat/Tgl Lahir' },
+  { key: 'nik', label: 'NIK' },
+  { key: 'hp', label: 'No HP' },
   { key: 'kelas', label: 'Kelas' },
-  { key: 'jenisKelamin', label: 'Jenis Kelamin', align: 'center' },
   { key: 'status', label: 'Status' },
 ];
 
@@ -255,9 +258,13 @@ const handleSaveBiodata = async () => {
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
       <DataTable :columns="columns" :items="rows" :loading="loading" empty-message="Belum ada data mahasiswa">
+        <template #cell-jenisKelamin="{ item }">{{ item.biodata?.jenisKelamin ?? '-' }}</template>
+        <template #cell-tempatTanggalLahir="{ item }">
+          {{ item.biodata?.tempatLahir ?? '-' }}<span v-if="item.biodata?.tanggalLahir">, {{ formatDate(item.biodata.tanggalLahir) }}</span>
+        </template>
+        <template #cell-nik="{ item }">{{ item.biodata?.noKtp || '-' }}</template>
         <template #cell-hp="{ item }">{{ item.biodata?.hp || '-' }}</template>
         <template #cell-kelas="{ item }">{{ item.biodata?.kelas || '-' }}</template>
-        <template #cell-jenisKelamin="{ item }">{{ item.peserta?.biodata?.jenisKelamin ?? '-' }}</template>
         <template #cell-status="{ item }">
           {{ item.jurusan?.namaJurusan ?? item.jurusan?.kodeProdi ?? '-' }} / {{ STATUS_MASUK_LABELS[item.statusMasuk] }}
         </template>

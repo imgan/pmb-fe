@@ -366,7 +366,7 @@ export interface TahunAjaran {
 export interface Mahasiswa {
   id: number;
   nim: string;
-  pesertaId: number;
+  pesertaId: number | null;
   namaLengkap: string;
   email: string;
   noTelepon: string | null;
@@ -628,6 +628,8 @@ export interface Yudisium {
   pembimbing1?: Dosen;
   pembimbing2Id: number | null;
   pembimbing2?: Dosen;
+  ipk?: number;
+  predikat?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -655,6 +657,7 @@ export interface LulusanItem {
   statusMasuk: StatusMasukMahasiswa | null;
   totalSks: number;
   ipk: number;
+  predikat: string | null;
   noSk: string | null;
   tanggalYudisium: string | null;
 }
@@ -934,6 +937,35 @@ export interface Transkrip {
   ipk: number;
 }
 
+// ---- Prodi: Evaluasi Studi ----
+
+export interface EvaluasiStudiTahap {
+  berlaku: boolean;
+  memenuhi: boolean;
+  minSks: number;
+  minIpk: number;
+}
+
+export interface EvaluasiStudiRow {
+  /** Alias mahasiswaId — ditambahkan di sisi frontend (lihat api/evaluasiStudi.ts) supaya
+   * cocok dengan constraint {id:number} yang dipakai useCrudPage/DataTable. */
+  id: number;
+  mahasiswaId: number;
+  nim: string;
+  namaLengkap: string;
+  prodi: string;
+  golonganKelas: string;
+  semester: number;
+  ipk: number;
+  sksTanpaE: number;
+  sksTanpaDE: number;
+  maxSemesterWajar: number;
+  tahap1: EvaluasiStudiTahap;
+  tahap2: EvaluasiStudiTahap;
+  melebihiMasaStudi: boolean;
+  bermasalah: boolean;
+}
+
 // ---- SIM: Student Body ----
 
 export interface StudentBodyRow {
@@ -1031,6 +1063,7 @@ export interface LaporanLulusanRow {
   nim: string;
   nama: string;
   ipk: number;
+  predikat: string | null;
   lamaStudiSemester: number | null;
 }
 
@@ -1648,7 +1681,6 @@ export interface BiodataMahasiswaItem {
   nim: string;
   namaLengkap: string;
   statusMasuk: StatusMasukMahasiswa;
-  biodata: { hp: string | null; kelas: string | null } | null;
+  biodata: MahasiswaBiodata | null;
   jurusan: { id: number; namaJurusan: string; kodeProdi: string | null } | null;
-  peserta: { id: number; biodata: { jenisKelamin: JenisKelamin } | null } | null;
 }

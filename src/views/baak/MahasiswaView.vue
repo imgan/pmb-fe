@@ -98,9 +98,23 @@ const onFilterChange = () => {
   fetchItems();
 };
 
+/**
+ * Mahasiswa.alamat (kolom lama, satu baris teks) sering kosong untuk mahasiswa hasil import
+ * Excel — datanya justru tersimpan terstruktur di biodata (Jalan/Kelurahan/Kecamatan). Susun
+ * dari situ sebagai fallback supaya kolom Alamat tidak kosong padahal datanya ada.
+ */
+const displayAlamat = (item: Mahasiswa) => {
+  if (item.alamat) return item.alamat;
+  const b = item.biodata;
+  if (!b) return '';
+  return [b.jalan, b.kelurahan, b.kecamatan].filter(Boolean).join(', ');
+};
+
 const columns: DataTableColumn[] = [
   { key: 'nim', label: 'NIM', sortable: true },
   { key: 'namaLengkap', label: 'Nama Lengkap', sortable: true },
+  { key: 'jenisKelamin', label: 'JK', align: 'center' },
+  { key: 'nik', label: 'NIK' },
   { key: 'jurusan', label: 'Jurusan', sortable: true },
   { key: 'golonganKelas', label: 'Golongan Kelas', sortable: true },
   { key: 'alamat', label: 'Alamat' },
@@ -519,10 +533,12 @@ const handleGenerate = async () => {
             Semester override: {{ item.semesterOverride }}
           </span>
         </template>
+        <template #cell-jenisKelamin="{ item }">{{ item.biodata?.jenisKelamin ?? '-' }}</template>
+        <template #cell-nik="{ item }">{{ item.biodata?.noKtp || '-' }}</template>
         <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
         <template #cell-golonganKelas="{ item }">{{ item.golonganKelas?.namaKelas ?? '-' }}</template>
         <template #cell-alamat="{ item }">
-          <span class="block max-w-64 truncate" :title="item.alamat ?? ''">{{ item.alamat || '-' }}</span>
+          <span class="block max-w-64 truncate" :title="displayAlamat(item)">{{ displayAlamat(item) || '-' }}</span>
         </template>
         <template #cell-tahunMasuk="{ item }">
           {{ item.tahunMasuk }}

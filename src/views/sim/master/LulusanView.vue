@@ -86,6 +86,7 @@ const handleTampilkan = async () => {
               <th class="p-3 border border-outline-variant">NIM</th>
               <th class="p-3 border border-outline-variant">Nama</th>
               <th class="p-3 border border-outline-variant">IPK</th>
+              <th class="p-3 border border-outline-variant">Predikat</th>
               <th class="p-3 border border-outline-variant">Lama Studi</th>
             </tr>
           </thead>
@@ -97,6 +98,7 @@ const handleTampilkan = async () => {
               <td class="p-2 border border-outline-variant">{{ row.nim }}</td>
               <td class="p-2 border border-outline-variant">{{ row.nama }}</td>
               <td class="p-2 border border-outline-variant">{{ row.ipk.toFixed(2) }}</td>
+              <td class="p-2 border border-outline-variant">{{ row.predikat ?? '-' }}</td>
               <td class="p-2 border border-outline-variant">
                 {{ row.lamaStudiSemester != null ? `${row.lamaStudiSemester} SEMESTER` : '-' }}
               </td>

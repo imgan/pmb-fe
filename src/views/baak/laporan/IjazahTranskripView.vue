@@ -43,6 +43,7 @@ const columns: DataTableColumn[] = [
   { key: 'lahir', label: 'Tmp/Tgl Lahir' },
   { key: 'totalSks', label: 'Total SKS', align: 'center' },
   { key: 'ipk', label: 'IPK', align: 'center' },
+  { key: 'predikat', label: 'Predikat', align: 'center' },
   { key: 'skYudisium', label: 'No. SK Yudisium' },
   { key: 'cetak', label: 'Cetak' },
 ];

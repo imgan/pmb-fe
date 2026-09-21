@@ -20,7 +20,7 @@ const modules: ModuleTile[] = [
   { key: 'keuangan', label: 'Keuangan', icon: 'payments', available: true },
   { key: 'sim', label: 'SIM', icon: 'monitoring', available: true },
   { key: 'dosen', label: 'Dosen', icon: 'co_present', available: false },
-  { key: 'mahasiswa', label: 'Mahasiswa', icon: 'group', available: false },
+  { key: 'mahasiswa', label: 'Mahasiswa', icon: 'group', available: true },
 ];
 
 type ModuleKey = 'pmb' | 'baak' | 'sdi' | 'prodi' | 'keuangan' | 'sim';
@@ -31,6 +31,13 @@ const selectedModule = ref<ModuleKey>('pmb');
 const selectModule = (mod: ModuleTile) => {
   if (!mod.available) {
     toastInfo(`Modul ${mod.label} segera hadir`);
+    return;
+  }
+  // Modul Mahasiswa punya portal & alur login tersendiri (login pakai NIM, bukan
+  // username staff) di /mahasiswa/login — bukan bagian dari step 2 (form login staff) di
+  // halaman ini, jadi langsung diarahkan ke sana alih-alih lanjut ke step 'login'.
+  if (mod.key === 'mahasiswa') {
+    router.push('/mahasiswa/login');
     return;
   }
   selectedModule.value = mod.key as ModuleKey;

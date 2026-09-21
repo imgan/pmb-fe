@@ -46,6 +46,8 @@ const columns: DataTableColumn[] = [
   { key: 'tanggalYudisium', label: 'Tanggal Yudisium' },
   { key: 'pin', label: 'PIN' },
   { key: 'judul', label: 'Judul' },
+  { key: 'ipk', label: 'IPK', align: 'center' },
+  { key: 'predikat', label: 'Predikat', align: 'center' },
 ];
 
 const pembimbingLine = (item: Yudisium) => {
@@ -218,6 +220,8 @@ const handleSubmit = async () => {
         <template #cell-tanggalYudisium="{ item }">{{ item.tanggalYudisium ? formatDate(item.tanggalYudisium) : '-' }}</template>
         <template #cell-pin="{ item }">{{ item.pin ?? '-' }}</template>
         <template #cell-judul="{ item }">{{ item.judul ?? '-' }}</template>
+        <template #cell-ipk="{ item }">{{ item.ipk != null ? item.ipk.toFixed(2) : '-' }}</template>
+        <template #cell-predikat="{ item }">{{ item.predikat ?? '-' }}</template>
         <template #actions="{ item }">
           <AppButton @click="openEdit(item)">Update</AppButton>
         </template>
