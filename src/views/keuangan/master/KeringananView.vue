@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import SearchableSelect from '@/components/ui/SearchableSelect.vue';
@@ -24,7 +25,7 @@ import type { Keringanan, StatusKeringanan } from '@/types/entities';
 
 const mahasiswaOptions = ref<{ value: string; label: string }[]>([]);
 onMounted(async () => {
-  const result = await mahasiswaApi.list({ limit: 500 });
+  const result = await mahasiswaApi.list({ limit: 1000 });
   mahasiswaOptions.value = result.data.map((m) => ({ value: m.nim, label: `${m.nim} - ${m.namaLengkap}` }));
 });
 
@@ -46,6 +47,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -78,9 +80,24 @@ const columns: DataTableColumn[] = [
   { key: 'totalTagihan', label: 'Total Tagihan', align: 'right' },
   { key: 'jumlahBayar', label: 'Nilai yang akan dibayar', align: 'right' },
   { key: 'tanggal', label: 'Pada tanggal', sortable: true },
+  { key: 'berlaku', label: 'Berlaku untuk' },
+  { key: 'sampaiTanggal', label: 'Sampai tanggal' },
   { key: 'status', label: 'Status', align: 'center' },
   { key: 'alasan', label: 'Alasan' },
 ];
+
+// Pilihan syarat cekal yang dibantu keringanan. UAS = syarat akhir semester (UAS, lihat nilai, KHS).
+const BERLAKU_OPTIONS = [
+  { key: 'berlakuKrs', label: 'KRS' },
+  { key: 'berlakuUts', label: 'UTS' },
+  { key: 'berlakuUas', label: 'UAS' },
+] as const;
+const berlakuText = (item: Keringanan) => BERLAKU_OPTIONS.filter((o) => item[o.key]).map((o) => o.label).join(', ') || '-';
+const todayIsoLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const sudahLewat = (item: Keringanan) => !!item.sampaiTanggal && item.sampaiTanggal.slice(0, 10) < todayIsoLocal();
 
 const rows = computed(() =>
   items.value.map((item, index) => ({ ...item, no: (page.value - 1) * meta.value.limit + index + 1 }))
@@ -90,6 +107,10 @@ interface FormState {
   nim: string;
   tanggal: string;
   jumlahBayar: number | null;
+  berlakuKrs: boolean;
+  berlakuUts: boolean;
+  berlakuUas: boolean;
+  sampaiTanggal: string;
   alasan: string;
   status: StatusKeringanan;
 }
@@ -100,6 +121,10 @@ const emptyForm = (): FormState => ({
   nim: '',
   tanggal: todayIso(),
   jumlahBayar: null,
+  berlakuKrs: true,
+  berlakuUts: true,
+  berlakuUas: true,
+  sampaiTanggal: '',
   alasan: '',
   status: 'DIAJUKAN',
 });
@@ -120,6 +145,10 @@ watch(
       form.nim = editing.mahasiswa?.nim ?? '';
       form.tanggal = editing.tanggal.slice(0, 10);
       form.jumlahBayar = editing.jumlahBayar;
+      form.berlakuKrs = editing.berlakuKrs;
+      form.berlakuUts = editing.berlakuUts;
+      form.berlakuUas = editing.berlakuUas;
+      form.sampaiTanggal = editing.sampaiTanggal?.slice(0, 10) ?? '';
       form.alasan = editing.alasan ?? '';
       form.status = editing.status;
     }
@@ -136,6 +165,10 @@ const handleSubmit = async () => {
   if (!form.nim.trim()) errors.nim = 'NIM wajib diisi';
   if (!form.tanggal) errors.tanggal = 'Tanggal wajib diisi';
   if (!form.jumlahBayar || form.jumlahBayar <= 0) errors.jumlahBayar = 'Jumlah bayar wajib diisi';
+  if (!form.berlakuKrs && !form.berlakuUts && !form.berlakuUas) errors.berlaku = 'Pilih minimal satu: KRS, UTS, atau UAS';
+  if (form.sampaiTanggal && form.tanggal && form.sampaiTanggal < form.tanggal) {
+    errors.sampaiTanggal = 'Sampai tanggal tidak boleh sebelum tanggal keringanan';
+  }
   if (Object.keys(errors).length > 0) return;
 
   submitting.value = true;
@@ -145,6 +178,10 @@ const handleSubmit = async () => {
       nim: form.nim.trim(),
       tanggal: form.tanggal,
       jumlahBayar: Number(form.jumlahBayar),
+      berlakuKrs: form.berlakuKrs,
+      berlakuUts: form.berlakuUts,
+      berlakuUas: form.berlakuUas,
+      sampaiTanggal: form.sampaiTanggal || null,
       alasan: form.alasan.trim() || null,
       status: form.status,
     };
@@ -181,6 +218,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="rows"
@@ -195,6 +236,14 @@ const handleSubmit = async () => {
         <template #cell-totalTagihan="{ item }">{{ formatCurrencyIdr(item.totalTagihan) }}</template>
         <template #cell-jumlahBayar="{ item }">{{ formatCurrencyIdr(item.jumlahBayar) }}</template>
         <template #cell-tanggal="{ item }">{{ formatDate(item.tanggal) }}</template>
+        <template #cell-berlaku="{ item }">{{ berlakuText(item) }}</template>
+        <template #cell-sampaiTanggal="{ item }">
+          <template v-if="item.sampaiTanggal">
+            {{ formatDate(item.sampaiTanggal) }}
+            <StatusBadge v-if="sudahLewat(item)" class="ml-1" label="Kedaluwarsa" variant="danger" />
+          </template>
+          <span v-else class="text-on-surface-variant">Tanpa batas</span>
+        </template>
         <template #cell-status="{ item }">
           <StatusBadge :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANT[item.status]" />
         </template>
@@ -246,6 +295,25 @@ const handleSubmit = async () => {
           />
           <p v-if="errors.jumlahBayar" class="mt-1 text-label-sm text-error">{{ errors.jumlahBayar }}</p>
         </label>
+        <div>
+          <span class="block font-medium text-label-md text-on-surface mb-2">
+            Keringanan berlaku untuk<span class="text-error"> *</span>
+          </span>
+          <div class="flex flex-wrap gap-4">
+            <label v-for="o in BERLAKU_OPTIONS" :key="o.key" class="flex items-center gap-2 text-body-md text-on-surface cursor-pointer">
+              <input v-model="form[o.key]" type="checkbox" />
+              {{ o.label }}
+            </label>
+          </div>
+          <p class="mt-1 text-label-sm text-on-surface-variant">UAS juga berlaku untuk melihat nilai, KHS &amp; daftar nilai sementara.</p>
+          <p v-if="errors.berlaku" class="mt-1 text-label-sm text-error">{{ errors.berlaku }}</p>
+        </div>
+        <div>
+          <DateInput v-model="form.sampaiTanggal" label="Sampai Tanggal" :error="errors.sampaiTanggal" />
+          <p class="mt-1 text-label-sm text-on-surface-variant">
+            Setelah tanggal ini keringanan tidak dihitung lagi dan syarat pembayaran kembali seperti semula. Kosongkan bila tanpa batas.
+          </p>
+        </div>
         <TextareaInput v-model="form.alasan" label="Alasan" :rows="3" placeholder="Alasan pengajuan keringanan..." />
         <SelectInput v-model="form.status" label="Status" placeholder="-- Status --" :options="statusOptions" />
       </form>

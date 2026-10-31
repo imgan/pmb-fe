@@ -6,6 +6,7 @@ import HorizontalBarChart from '@/components/charts/HorizontalBarChart.vue';
 import DonutChart from '@/components/charts/DonutChart.vue';
 import LineChart from '@/components/charts/LineChart.vue';
 import VerticalBarChart from '@/components/charts/VerticalBarChart.vue';
+import StatistikAkmPanel from '@/components/baak/StatistikAkmPanel.vue';
 import { mahasiswaApi } from '@/api/mahasiswa';
 import { dosenApi } from '@/api/dosen';
 import { nilaiMahasiswaApi } from '@/api/nilaiMahasiswa';
@@ -106,6 +107,8 @@ onMounted(loadDashboard);
         </div>
       </div>
     </section>
+
+    <StatistikAkmPanel />
 
     <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">

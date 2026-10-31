@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import TextareaInput from '@/components/ui/TextareaInput.vue';
@@ -66,6 +67,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -111,6 +113,7 @@ interface FormState {
   dosenId: number | '';
   tanggalRealisasi: string;
   status: StatusKehadiranDosen;
+  uraian: string;
   keterangan: string;
 }
 
@@ -119,6 +122,7 @@ const emptyForm = (): FormState => ({
   dosenId: '',
   tanggalRealisasi: '',
   status: 'HADIR',
+  uraian: '',
   keterangan: '',
 });
 
@@ -139,6 +143,7 @@ watch(
       form.dosenId = editing.dosenId;
       form.tanggalRealisasi = toDateInputValue(editing.tanggalRealisasi);
       form.status = editing.status;
+      form.uraian = editing.uraian ?? '';
       form.keterangan = editing.keterangan ?? '';
     }
   },
@@ -160,6 +165,7 @@ const handleSubmit = async () => {
       dosenId: Number(form.dosenId),
       tanggalRealisasi: form.tanggalRealisasi,
       status: form.status,
+      uraian: form.uraian.trim() || null,
       keterangan: form.keterangan.trim() || null,
     };
     if (editingItem.value) {
@@ -203,6 +209,10 @@ const handleSubmit = async () => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"
@@ -258,7 +268,8 @@ const handleSubmit = async () => {
           <DateInput v-model="form.tanggalRealisasi" label="Tanggal Realisasi" required :error="errors.tanggalRealisasi" />
           <SelectInput v-model="form.status" label="Status" :options="STATUS_OPTIONS" />
         </div>
-        <TextareaInput v-model="form.keterangan" label="Keterangan" :rows="3" />
+        <TextareaInput v-model="form.uraian" label="Uraian Materi (Pokok Bahasan)" :rows="3" />
+        <TextareaInput v-model="form.keterangan" label="Rincian Materi" :rows="3" />
       </form>
       <template #footer>
         <AppButton variant="secondary" @click="closeForm">Batal</AppButton>

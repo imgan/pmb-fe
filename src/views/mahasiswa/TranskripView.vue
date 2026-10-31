@@ -59,13 +59,27 @@ onMounted(async () => {
             </thead>
             <tbody class="divide-y divide-outline-variant text-body-sm text-on-surface">
               <template v-for="s in transkrip.perSemester" :key="s.semester">
-                <tr v-for="n in s.nilai" :key="`${s.semester}-${n.kodeMataKuliah}`">
+                <tr
+                  v-for="n in s.nilai"
+                  :key="`${s.semester}-${n.kodeMataKuliah}`"
+                  :class="n.diakui === false && !n.perluIsiAngket ? 'text-on-surface-variant opacity-70' : ''"
+                >
                   <td class="p-3">{{ s.semester }}</td>
                   <td class="p-3">{{ n.kodeMataKuliah }}</td>
-                  <td class="p-3">{{ n.namaMataKuliah }}</td>
+                  <td class="p-3">
+                    {{ n.namaMataKuliah }}
+                    <RouterLink
+                      v-if="n.perluIsiAngket"
+                      :to="{ name: 'mahasiswa-angket-dosen', query: n.jadwalKuliahId ? { jadwal: String(n.jadwalKuliahId) } : {} }"
+                      class="ml-1 text-label-sm italic text-primary hover:underline"
+                    >
+                      (isi kuesioner dosen untuk melihat nilai)
+                    </RouterLink>
+                    <span v-else-if="n.diakui === false" class="ml-1 text-label-sm italic">(diulang, tidak dihitung di IPK)</span>
+                  </td>
                   <td class="p-3 text-center">{{ n.sks }}</td>
-                  <td class="p-3 text-center font-semibold">{{ n.grade }}</td>
-                  <td class="p-3 text-center">{{ n.mutu.toFixed(2) }}</td>
+                  <td class="p-3 text-center font-semibold">{{ n.grade ?? '-' }}</td>
+                  <td class="p-3 text-center">{{ n.perluIsiAngket ? '-' : n.mutu.toFixed(2) }}</td>
                 </tr>
               </template>
             </tbody>

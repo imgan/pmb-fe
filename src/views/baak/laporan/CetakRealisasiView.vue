@@ -8,6 +8,8 @@ import SearchInput from '@/components/ui/SearchInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import { laporanRealisasiApi } from '@/api/laporanRealisasi';
 import { extractErrorMessage } from '@/api/http';
+import { openBlob } from '@/utils/download';
+import { toastError } from '@/utils/swal';
 import type { RealisasiMengajarItem } from '@/types/entities';
 import type { PagingMeta } from '@/types/common';
 
@@ -29,6 +31,18 @@ const rows = computed(() =>
   items.value.map((item, index) => ({ ...item, no: (page.value - 1) * pageSize.value + index + 1 }))
 );
 
+const printingId = ref<number | null>(null);
+const handleCetak = async (jadwalKuliahId: number) => {
+  printingId.value = jadwalKuliahId;
+  try {
+    openBlob(await laporanRealisasiApi.cetakPdf(jadwalKuliahId));
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal membuka dokumen'));
+  } finally {
+    if (printingId.value === jadwalKuliahId) printingId.value = null;
+  }
+};
+
 const columns: DataTableColumn[] = [
   { key: 'no', label: 'No', align: 'center' },
   { key: 'hariJam', label: 'Hari Jam' },
@@ -39,6 +53,7 @@ const columns: DataTableColumn[] = [
   { key: 'jam', label: 'Jam', align: 'center' },
   { key: 'ruangan', label: 'Ruang' },
   { key: 'realisasi', label: 'Realisasi', align: 'center' },
+  { key: 'cetak', label: 'Cetak Realisasi', align: 'center' },
 ];
 
 const fetchItems = async () => {
@@ -112,7 +127,7 @@ onMounted(async () => {
         <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span>Show</span>
           <div class="w-20">
-            <SelectInput v-model="pageSize" :options="pageSizeOptions" />
+            <SelectInput v-model="pageSize" :options="pageSizeOptions" :clearable="false" />
           </div>
           <span>entries</span>
         </div>
@@ -131,6 +146,16 @@ onMounted(async () => {
           <span class="inline-flex items-center justify-center min-w-8 px-2 py-0.5 rounded-full bg-primary-container text-on-primary-container text-label-sm font-medium">
             {{ item.realisasi }}
           </span>
+        </template>
+        <template #cell-cetak="{ item }">
+          <button
+            type="button"
+            class="text-primary hover:underline disabled:opacity-50 disabled:no-underline text-label-sm"
+            :disabled="printingId === item.id"
+            @click="handleCetak(item.id)"
+          >
+            {{ printingId === item.id ? 'Memuat...' : '[ Cetak ]' }}
+          </button>
         </template>
       </DataTable>
 

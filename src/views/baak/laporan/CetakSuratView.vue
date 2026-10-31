@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -17,7 +18,7 @@ import { mahasiswaApi } from '@/api/mahasiswa';
 import { extractErrorMessage } from '@/api/http';
 import { formatDate } from '@/utils/format';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
-import { openBlob } from '@/utils/download';
+import { downloadBlob } from '@/utils/download';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { toastError } from '@/utils/swal';
@@ -45,15 +46,21 @@ const JENIS_SURAT_OPTIONS: { value: JenisSurat; label: string }[] = [
   { value: 'KKP', label: 'Surat Kuliah Kerja Praktek (KKP)' },
   { value: 'REKOMENDASI_KAMPUS_MERDEKA', label: 'Surat Rekomendasi Kampus Merdeka' },
   { value: 'UJIAN_UAS', label: 'Surat Keterangan Mengikuti Ujian UAS' },
+  { value: 'DAFTAR_SIDANG_TA', label: 'Formulir Pendaftaran Sidang Tugas Akhir' },
+  { value: 'REKAP_NILAI_SIDANG', label: 'Rekapitulasi Nilai Sidang Mahasiswa' },
+  { value: 'JURNAL_KONSULTASI_TA', label: 'Jurnal Konsultasi Tugas Akhir' },
 ];
 const INSTANSI_JENIS: JenisSurat[] = ['OBSERVASI', 'KKP'];
 const KAMPUS_MERDEKA_JENIS: JenisSurat = 'REKOMENDASI_KAMPUS_MERDEKA';
 const UJIAN_UAS_JENIS: JenisSurat = 'UJIAN_UAS';
+// Formulir Sidang TA memakai kolom namaInstansi/alamatInstansi untuk Lokasi & Alamat Penelitian.
+const SIDANG_TA_JENIS: JenisSurat = 'DAFTAR_SIDANG_TA';
+const REKAP_SIDANG_JENIS: JenisSurat = 'REKAP_NILAI_SIDANG';
 const jenisSuratLabel = (jenis: JenisSurat) => JENIS_SURAT_OPTIONS.find((o) => o.value === jenis)?.label ?? jenis;
 
 const mahasiswaOptions = ref<{ value: number; label: string }[]>([]);
 onMounted(async () => {
-  const result = await mahasiswaApi.list({ limit: 200 });
+  const result = await mahasiswaApi.list({ limit: 1000 });
   mahasiswaOptions.value = result.data.map((m) => ({ value: m.id, label: `${m.nim} - ${m.namaLengkap}` }));
 });
 
@@ -61,6 +68,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -240,10 +248,12 @@ const printingId = ref<number | null>(null);
 const handleCetakPdf = async (id: number) => {
   printingId.value = id;
   try {
-    const blob = await suratKeteranganApi.cetakPdf(id);
-    openBlob(blob);
+    // Diunduh (bukan dibuka di tab) supaya nama file NAMA_SURAT_NIM dari server terpakai —
+    // PDF yang dibuka sebagai blob di tab baru selalu tersimpan dengan nama acak.
+    const { blob, filename } = await suratKeteranganApi.cetakPdf(id);
+    downloadBlob(blob, filename);
   } catch (err) {
-    toastError(extractErrorMessage(err, 'Gagal membuka dokumen'));
+    toastError(extractErrorMessage(err, 'Gagal mengunduh dokumen'));
   } finally {
     if (printingId.value === id) printingId.value = null;
   }
@@ -282,6 +292,10 @@ const handleDecide = async (id: number, status: 'DISETUJUI' | 'DITOLAK') => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"
@@ -327,7 +341,7 @@ const handleDecide = async (id: number, status: 'DISETUJUI' | 'DITOLAK') => {
             :disabled="printingId === item.id"
             @click="handleCetakPdf(item.id)"
           >
-            {{ printingId === item.id ? 'Membuka...' : 'Cetak PDF' }}
+            {{ printingId === item.id ? 'Mengunduh...' : 'Cetak PDF' }}
           </button>
           <button
             v-if="canUpdate"
@@ -395,6 +409,23 @@ const handleDecide = async (id: number, status: 'DISETUJUI' | 'DITOLAK') => {
           <TextareaInput v-model="form.alamatInstansi" label="Alamat Instansi" :rows="2" />
         </template>
 
+        <template v-if="form.jenisSurat === SIDANG_TA_JENIS">
+          <TextInput v-model="form.namaInstansi" label="Lokasi Penelitian" placeholder="mis. RS Mitra Keluarga Bekasi" />
+          <TextareaInput v-model="form.alamatInstansi" label="Alamat Penelitian" :rows="2" />
+          <p class="text-label-sm text-on-surface-variant">
+            Dosen pembimbing diambil dari data Pendaftar Sidang di Prodi; No. HP dari biodata mahasiswa.
+          </p>
+        </template>
+
+        <p v-if="form.jenisSurat === 'JURNAL_KONSULTASI_TA'" class="text-label-sm text-on-surface-variant">
+          Sampul + lembar Daftar Konsultasi per pembimbing. Judul, TA &amp; pembimbing diambil dari data Pendaftar Sidang di
+          Prodi; tabel konsultasi dicetak kosong untuk diisi &amp; diparaf pembimbing tiap pertemuan.
+        </p>
+        <p v-if="form.jenisSurat === REKAP_SIDANG_JENIS" class="text-label-sm text-on-surface-variant">
+          Judul, TA, dosen pembimbing &amp; penguji diambil dari data Pendaftar/Jadwal Sidang di Prodi. Nilai terisi
+          otomatis dari input dosen di portal dosen (menu Nilai Sidang); yang belum diisi dicetak kosong.
+        </p>
+
         <template v-if="form.jenisSurat === KAMPUS_MERDEKA_JENIS">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <TextInput v-model.number="form.ipk" label="IPK" type="number" step="0.01" />
@@ -460,6 +491,28 @@ const handleDecide = async (id: number, status: 'DISETUJUI' | 'DITOLAK') => {
             <span class="text-on-surface">: {{ viewData.surat.jumlahSks ?? '-' }}</span>
             <span class="text-on-surface-variant">Koordinator PT MSIB</span>
             <span class="text-on-surface">: {{ viewData.surat.namaKoordinator ?? '-' }} ({{ viewData.surat.noHpKoordinator ?? '-' }})</span>
+          </template>
+          <template v-if="viewData.surat.jenisSurat === SIDANG_TA_JENIS">
+            <span class="text-on-surface-variant">Lokasi Penelitian</span>
+            <span class="text-on-surface">
+              : {{ [viewData.surat.namaInstansi, viewData.surat.alamatInstansi].filter(Boolean).join(', ') || '-' }}
+            </span>
+            <span class="text-on-surface-variant">No. HP</span>
+            <span class="text-on-surface">: {{ viewData.mahasiswa.hp || '-' }}</span>
+            <span class="text-on-surface-variant">Pembimbing 1</span>
+            <span class="text-on-surface">: {{ viewData.pembimbing[0] || '- (diisi manual)' }}</span>
+            <span class="text-on-surface-variant">Pembimbing 2</span>
+            <span class="text-on-surface">: {{ viewData.pembimbing[1] || '- (diisi manual)' }}</span>
+          </template>
+          <template v-if="viewData.surat.jenisSurat === REKAP_SIDANG_JENIS">
+            <span class="text-on-surface-variant">Judul</span>
+            <span class="text-on-surface">: {{ viewData.sidang?.judul || '- (diisi manual)' }}</span>
+            <span class="text-on-surface-variant">TA Sidang</span>
+            <span class="text-on-surface">: {{ viewData.sidang?.tahunAjaran || '- (otomatis dari tanggal)' }}</span>
+            <span class="text-on-surface-variant">Pembimbing I / II</span>
+            <span class="text-on-surface">: {{ viewData.pembimbing[0] || '-' }} / {{ viewData.pembimbing[1] || '-' }}</span>
+            <span class="text-on-surface-variant">Penguji I</span>
+            <span class="text-on-surface">: {{ viewData.sidang?.penguji[0] || '-' }}</span>
           </template>
           <template v-if="viewData.surat.jenisSurat === UJIAN_UAS_JENIS">
             <span class="text-on-surface-variant">Tanggal Ujian</span>

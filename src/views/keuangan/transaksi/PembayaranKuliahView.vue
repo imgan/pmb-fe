@@ -3,12 +3,17 @@ import { computed, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import DateInput from '@/components/ui/DateInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import Modal from '@/components/ui/Modal.vue';
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
+import { usePermission } from '@/composables/usePermission';
+import { MENU } from '@/constants/menuCodes';
+import { openBlob } from '@/utils/download';
 import { tagihanKuliahApi } from '@/api/tagihanKuliah';
 import { pembayaranKuliahApi, type PembayaranKuliahPayload } from '@/api/pembayaranKuliah';
 import { pembayaranTaSkripsiApi } from '@/api/pembayaranTaSkripsi';
@@ -17,8 +22,9 @@ import { pembayaranLainApi } from '@/api/pembayaranLain';
 import { laporanKeuanganApi } from '@/api/laporanKeuangan';
 import { extractErrorMessage } from '@/api/http';
 import { formatCurrencyIdr, formatCurrencyInputIdr, formatDate, parseRupiahInput } from '@/utils/format';
-import { toastSuccess } from '@/utils/swal';
+import { toastSuccess, toastError } from '@/utils/swal';
 import type { PembayaranKuliah, RingkasanBiayaLainRow, RingkasanTaSkripsiPeriode, TagihanKuliah } from '@/types/entities';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 // ---- Cari mahasiswa & tagihannya (kuliah + TA/Skripsi) ----
 const nimInput = ref('');
@@ -79,7 +85,7 @@ const payableItems = computed<PayableItem[]>(() => {
     .forEach((t) => {
       items.push({
         key: `kuliah-${t.id}`,
-        label: `Kuliah · ${t.tahunAjaran?.nama ?? '-'} Semester ${t.semester} · Sisa ${formatCurrencyIdr(t.sisaTagihan)}`,
+        label: `Kuliah · ${formatTahunAjaran(t.tahunAjaran)} Semester ${t.semester} · Sisa ${formatCurrencyIdr(t.sisaTagihan)}`,
         sisa: t.sisaTagihan,
         kind: 'KULIAH',
         tagihan: t,
@@ -220,6 +226,7 @@ const handleSubmit = async () => {
 const riwayat = ref<PembayaranKuliah[]>([]);
 const riwayatMeta = ref({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const riwayatPage = ref(1);
+const pageSize = ref(10);
 const riwayatSearch = ref('');
 const riwayatLoading = ref(false);
 
@@ -228,7 +235,7 @@ const fetchRiwayat = async () => {
   try {
     const result = await pembayaranKuliahApi.list({
       page: riwayatPage.value,
-      limit: 10,
+      limit: pageSize.value,
       search: riwayatSearch.value || undefined,
     });
     riwayat.value = result.data;
@@ -239,6 +246,10 @@ const fetchRiwayat = async () => {
 };
 fetchRiwayat();
 watch(riwayatPage, fetchRiwayat);
+watch(pageSize, () => {
+  if (riwayatPage.value !== 1) riwayatPage.value = 1;
+  else fetchRiwayat();
+});
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 watch(riwayatSearch, () => {
   clearTimeout(searchDebounce);
@@ -260,6 +271,39 @@ const riwayatColumns: DataTableColumn[] = [
   { key: 'nominal', label: 'Nominal', align: 'right' },
   { key: 'kodeBank', label: 'Bank' },
 ];
+
+// ---- Aksi per baris riwayat: cetak kwitansi & hapus transaksi ----
+const { canDelete } = usePermission(MENU.KEUANGAN_PEMBAYARAN_KULIAH_MANAGEMENT);
+const printingId = ref<number | null>(null);
+const cetakKwitansi = async (item: PembayaranKuliah) => {
+  printingId.value = item.id;
+  try {
+    openBlob(await pembayaranKuliahApi.kwitansiPdf(item.id));
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal membuka kwitansi'));
+  } finally {
+    printingId.value = null;
+  }
+};
+
+const deleteTarget = ref<PembayaranKuliah | null>(null);
+const deleting = ref(false);
+const confirmDelete = async () => {
+  if (!deleteTarget.value) return;
+  deleting.value = true;
+  try {
+    await pembayaranKuliahApi.remove(deleteTarget.value.id);
+    toastSuccess('Pembayaran dihapus');
+    deleteTarget.value = null;
+    fetchRiwayat();
+    // Sisa tagihan mahasiswa yang sedang dicari ikut berubah.
+    if (searched.value) handleCari();
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal menghapus pembayaran'));
+  } finally {
+    deleting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -299,12 +343,38 @@ const riwayatColumns: DataTableColumn[] = [
           <SearchInput v-model="riwayatSearch" placeholder="Cari NIM atau nama mahasiswa..." />
         </div>
       </div>
-      <DataTable :columns="riwayatColumns" :items="riwayatRows" :loading="riwayatLoading" :show-actions="false" empty-message="Belum ada pembayaran kuliah">
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
+
+      <DataTable :columns="riwayatColumns" :items="riwayatRows" :loading="riwayatLoading" empty-message="Belum ada pembayaran kuliah">
         <template #cell-nim="{ item }">{{ item.tagihan?.mahasiswa?.nim ?? '-' }}</template>
         <template #cell-nama="{ item }">{{ item.tagihan?.mahasiswa?.namaLengkap ?? '-' }}</template>
         <template #cell-tanggalBayar="{ item }">{{ formatDate(item.tanggalBayar) }}</template>
         <template #cell-nominal="{ item }">{{ formatCurrencyIdr(item.nominal) }}</template>
         <template #cell-kodeBank="{ item }">{{ item.kodeBank || '-' }}</template>
+        <template #actions="{ item }">
+          <div class="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              class="text-on-surface-variant hover:text-primary transition-colors disabled:opacity-50"
+              title="Cetak Kwitansi"
+              :disabled="printingId === item.id"
+              @click="cetakKwitansi(item)"
+            >
+              <span class="material-symbols-outlined" style="font-size: 20px">print</span>
+            </button>
+            <button
+              v-if="canDelete"
+              type="button"
+              class="text-on-surface-variant hover:text-error transition-colors"
+              title="Hapus"
+              @click="deleteTarget = item"
+            >
+              <span class="material-symbols-outlined" style="font-size: 20px">delete</span>
+            </button>
+          </div>
+        </template>
       </DataTable>
       <Pagination v-model="riwayatPage" :meta="riwayatMeta" />
     </section>
@@ -347,5 +417,15 @@ const riwayatColumns: DataTableColumn[] = [
         <AppButton :disabled="submitting" @click="handleSubmit">{{ submitting ? 'Menyimpan...' : 'Simpan' }}</AppButton>
       </template>
     </Modal>
+
+    <ConfirmDialog
+      :open="!!deleteTarget"
+      title="Hapus Pembayaran"
+      :message="`Hapus pembayaran ${deleteTarget?.tagihan?.mahasiswa?.namaLengkap ?? ''} sebesar ${formatCurrencyIdr(deleteTarget?.nominal ?? 0)} (No. Bukti ${deleteTarget?.noBukti ?? '-'})? Jurnal kas-nya ikut dihapus dan sisa tagihan mahasiswa bertambah kembali.`"
+      confirm-label="Hapus"
+      :loading="deleting"
+      @confirm="confirmDelete"
+      @cancel="deleteTarget = null"
+    />
   </div>
 </template>

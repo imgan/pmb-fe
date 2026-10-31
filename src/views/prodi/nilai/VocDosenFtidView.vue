@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import { vocDosenFtidApi } from '@/api/vocDosenFtid';
 import { extractErrorMessage } from '@/api/http';
@@ -17,6 +18,7 @@ const router = useRouter();
 const items = ref<Dosen[]>([]);
 const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const page = ref(1);
+const pageSize = ref(10);
 const search = ref('');
 const loading = ref(true);
 const error = ref<string | null>(null);
@@ -25,7 +27,7 @@ const fetchItems = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const result = await vocDosenFtidApi.list({ page: page.value, limit: 10, search: search.value || undefined });
+    const result = await vocDosenFtidApi.list({ page: page.value, limit: pageSize.value, search: search.value || undefined });
     items.value = result.data;
     meta.value = result.meta;
   } catch (err) {
@@ -36,6 +38,10 @@ const fetchItems = async () => {
 };
 
 watch(page, fetchItems);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
 let searchDebounce: ReturnType<typeof setTimeout> | undefined;
 watch(search, () => {
   clearTimeout(searchDebounce);
@@ -89,6 +95,10 @@ const handlePrint = async (item: Dosen) => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
 
       <DataTable :columns="columns" :items="rows" :loading="loading" empty-message="Belum ada data dosen FTID">
         <template #cell-nidn="{ item }">{{ item.nidn || '-' }}</template>

@@ -14,12 +14,14 @@ const STATUS_LABELS: Record<StatusKrs, string> = {
   DIAJUKAN: 'Diajukan',
   DISETUJUI: 'Disetujui',
   DITOLAK: 'Ditolak',
+  BELUM_ISI: 'Belum Isi',
 };
 const STATUS_VARIANT: Record<StatusKrs, 'success' | 'warning' | 'danger' | 'neutral'> = {
   DRAFT: 'neutral',
   DIAJUKAN: 'warning',
   DISETUJUI: 'success',
   DITOLAK: 'danger',
+  BELUM_ISI: 'danger',
 };
 
 const HARI_LABELS: Record<HariKuliah, string> = {

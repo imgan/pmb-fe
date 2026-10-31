@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from '@/components/ui/PasswordInput.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import PublicHeader from '@/components/public/PublicHeader.vue';
@@ -6,7 +7,7 @@ import PublicFooter from '@/components/public/PublicFooter.vue';
 import { usePesertaAuthStore } from '@/stores/pesertaAuth';
 import { extractErrorMessage } from '@/api/http';
 
-const email = ref('');
+const username = ref('');
 const password = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -19,11 +20,13 @@ const handleSubmit = async () => {
   loading.value = true;
   error.value = null;
   try {
-    await pesertaAuthStore.login(email.value, password.value);
+    await pesertaAuthStore.login(username.value.trim(), password.value);
     const redirect = (route.query.redirect as string) || '/pendaftaran/biodata';
-    router.push(redirect);
+    // Masih memakai password awal (nomor HP) → wajib ganti password dulu.
+    if (pesertaAuthStore.peserta?.wajibGantiPassword) router.push({ name: 'pendaftaran-ganti-password', query: { redirect } });
+    else router.push(redirect);
   } catch (err) {
-    error.value = extractErrorMessage(err, 'Email atau password salah');
+    error.value = extractErrorMessage(err, 'Nomor HP/email atau password salah');
   } finally {
     loading.value = false;
   }
@@ -42,7 +45,7 @@ const handleSubmit = async () => {
           </div>
           <h1 class="font-semibold text-headline-lg text-primary">Masuk Peserta</h1>
           <p class="text-body-md text-on-surface-variant mt-1">
-            Gunakan email & password yang dikirim saat pendaftaran.
+            Masuk dengan <b>nomor HP</b> (atau email). Password awal = nomor HP yang didaftarkan.
           </p>
         </div>
 
@@ -55,12 +58,13 @@ const handleSubmit = async () => {
           </div>
 
           <label class="block">
-            <span class="block font-medium text-label-md text-on-surface mb-2">Email</span>
+            <span class="block font-medium text-label-md text-on-surface mb-2">Nomor HP atau Email</span>
             <input
-              v-model="email"
-              type="email"
+              v-model="username"
+              type="text"
               required
-              autocomplete="email"
+              autocomplete="username"
+              placeholder="Contoh: 081234567890"
               class="w-full px-3 py-2 border border-outline-variant rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
             />
           </label>
@@ -72,13 +76,7 @@ const handleSubmit = async () => {
                 Lupa password?
               </RouterLink>
             </div>
-            <input
-              v-model="password"
-              type="password"
-              required
-              autocomplete="current-password"
-              class="w-full px-3 py-2 border border-outline-variant rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-            />
+            <PasswordInput v-model="password" required autocomplete="current-password" />
           </label>
 
           <button

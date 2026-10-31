@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput, { type SelectOption } from '@/components/ui/SelectInput.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
@@ -10,17 +11,20 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { evaluasiStudiApi } from '@/api/evaluasiStudi';
 import { jurusanApi } from '@/api/jurusan';
 import { useCrudPage } from '@/composables/useCrudPage';
+import { useProdiContext } from '@/composables/useProdiContext';
+
+const { prodiLocked, prodiPlaceholder } = useProdiContext();
 
 const jurusanOptions = ref<SelectOption[]>([]);
 onMounted(async () => {
-  const result = await jurusanApi.list({ limit: 200 });
+  const result = await jurusanApi.listProdi({ limit: 200 });
   jurusanOptions.value = result.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
 });
 
 const jurusanFilter = ref<number | ''>('');
 const hanyaBermasalah = ref(true);
 
-const { items, meta, page, search, loading, error, fetchItems } = useCrudPage({
+const { items, meta, page, limit, search, loading, error, fetchItems } = useCrudPage({
   fetchList: evaluasiStudiApi.list,
   remove: async () => {},
   extraQuery: () => ({
@@ -61,7 +65,7 @@ const columns: DataTableColumn[] = [
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
         <div class="flex flex-col md:flex-row gap-3">
           <div class="w-full md:w-56">
-            <SelectInput v-model="jurusanFilter" placeholder="Semua Prodi" :options="jurusanOptions" @change="onFilterChange" />
+            <SelectInput v-model="jurusanFilter" :placeholder="prodiPlaceholder('Semua Prodi')" :disabled="prodiLocked" :options="jurusanOptions" @change="onFilterChange" />
           </div>
           <div class="w-full md:w-64">
             <SearchInput v-model="search" placeholder="Cari NIM atau nama..." />
@@ -73,6 +77,10 @@ const columns: DataTableColumn[] = [
       <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">Daftar Evaluasi Studi Mahasiswa Aktif</div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"

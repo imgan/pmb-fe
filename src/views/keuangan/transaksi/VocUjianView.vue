@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import { vocUjianApi } from '@/api/vocUjian';
@@ -19,6 +20,7 @@ const { canCreate } = usePermission(MENU.KEUANGAN_VOC_UJIAN_MANAGEMENT);
 const items = ref<DosenHonorUjian[]>([]);
 const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const page = ref(1);
+const pageSize = ref(10);
 const search = ref('');
 const loading = ref(false);
 const error = ref<string | null>(null);
@@ -30,7 +32,7 @@ const fetchItems = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const result = await vocUjianApi.list({ page: page.value, limit: 10, search: search.value || undefined });
+    const result = await vocUjianApi.list({ page: page.value, limit: pageSize.value, search: search.value || undefined });
     items.value = result.data;
     meta.value = result.meta;
     result.data.forEach((item) => {
@@ -55,6 +57,10 @@ watch(search, () => {
 });
 
 watch(page, () => fetchItems());
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
 
 const columns: DataTableColumn[] = [
   { key: 'no', label: 'No', align: 'center' },
@@ -103,6 +109,10 @@ const handlePembayaran = async (item: DosenHonorUjian) => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
 
       <DataTable
         :columns="columns"

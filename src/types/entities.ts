@@ -8,7 +8,7 @@ export interface Role {
   updatedAt?: string;
 }
 
-export type ModuleCode = 'pmb' | 'baak' | 'sdi' | 'prodi' | 'keuangan' | 'sim';
+export type ModuleCode = 'pmb' | 'baak' | 'sdi' | 'prodi' | 'keuangan' | 'sim' | 'admin' | 'lms';
 
 export interface Menu {
   id: number;
@@ -43,6 +43,7 @@ export interface RoleMenuPermission {
 export interface User {
   id: number;
   roleId: number;
+  kodeProdi?: string | null;
   name: string;
   username: string;
   email: string;
@@ -68,6 +69,8 @@ export interface Jurusan {
   golonganKelasId: number;
   namaJurusan: string;
   kodeProdi: string | null;
+  /** Singkatan prodi untuk nama kelas (BAAK > Generate NIM), mis. TI. */
+  singkatan?: string | null;
   foto: string | null;
   prospekKarir: string | null;
   jenjangPendidikan: string | null;
@@ -90,6 +93,45 @@ export interface SumberInformasi {
 export interface UkuranAlmamater {
   id: number;
   ukuran: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Pengumuman {
+  id: number;
+  judul: string;
+  /** Sasaran: portal mahasiswa, portal dosen, atau keduanya. */
+  untuk: 'SEMUA' | 'MAHASISWA' | 'DOSEN';
+  /** HTML dari editor teks BAAK. */
+  isi: string;
+  /** null = semua prodi. */
+  jurusanId: number | null;
+  jurusan?: { id: number; namaJurusan: string } | null;
+  tanggalTerbit: string;
+  tanggalBerakhir: string | null;
+  isPenting: boolean;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Agama {
+  id: number;
+  kodeAgama: string;
+  namaAgama: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Ruangan {
+  id: number;
+  namaRuang: string;
+  kampus: string | null;
+  lantai: number | null;
+  projector: boolean;
+  keterangan: string | null;
+  fungsi: string | null;
+  kursi: number | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -123,12 +165,19 @@ export interface DokumenKelengkapan {
 export interface Gelombang {
   id: number;
   namaGelombang: string;
+  /** Tahun Ajaran PMB gelombang (opsional). */
+  tahunPmbId?: number | null;
+  tahunPmb?: { id: number; nama: string; jenisSemester: SemesterGanjilGenap; isActive: boolean } | null;
   startDate: string;
   endDate: string;
   deskripsi: string | null;
+  /** OTOMATIS = aktif sesuai rentang tanggal; AKTIF / TIDAK_AKTIF = diatur manual admin. */
+  status?: StatusGelombang;
   createdAt?: string;
   updatedAt?: string;
 }
+
+export type StatusGelombang = 'OTOMATIS' | 'AKTIF' | 'TIDAK_AKTIF';
 
 export type JenisKelamin = 'L' | 'P';
 
@@ -151,7 +200,15 @@ export interface PesertaBiodata {
   kecamatan: string;
   kodePos: string;
   noWhatsapp: string;
+  /** Data Pendidikan (nama asal sekolah ada di Peserta.asalSekolah). */
+  jurusanSekolah?: string | null;
+  tahunLulus?: string | null;
+  jenisPengelolaanSekolah?: string | null;
+  alamatSekolah?: string | null;
+  nisn?: string | null;
   isAgree: boolean;
+  /** true = peserta tidak bisa mengubah biodata sampai admin membuka kunci. */
+  isLocked?: boolean;
 }
 
 export type StatusUjian = 'belum_ujian' | 'lulus' | 'tidak_lulus';
@@ -166,10 +223,18 @@ export interface Peserta {
   noTelepon: string;
   email: string;
   isActive: boolean;
+  /** true = masih memakai password awal (nomor HP) → wajib ganti saat login. */
+  wajibGantiPassword?: boolean;
   statusUjian: StatusUjian;
   statusKelulusan: StatusKelulusan;
+  tahunPmbId?: number | null;
+  sumberInformasiId?: number | null;
+  /** Minat jalur pendaftaran; null = Pembiayaan Mandiri. */
+  beasiswaId?: number | null;
   golonganKelas?: GolonganKelas;
   jurusan?: Jurusan;
+  sumberInformasi?: { id: number; namaInformasi: string } | null;
+  beasiswa?: { id: number; namaBeasiswa: string } | null;
   biodata?: PesertaBiodata | null;
   createdAt?: string;
   updatedAt?: string;
@@ -201,6 +266,7 @@ export interface Kampus {
   facebookUrl: string | null;
   instagramUrl: string | null;
   youtubeUrl: string | null;
+  tiktokUrl: string | null;
   logoUrl: string | null;
   faviconUrl: string | null;
   websiteTitle: string | null;
@@ -258,13 +324,38 @@ export interface CalonMahasiswa {
   gelombangId: number | null;
   gelombang?: Gelombang | null;
   pesertaId: number | null;
-  peserta?: Pick<Peserta, 'id' | 'namaLengkap' | 'email' | 'statusUjian' | 'statusKelulusan'> | null;
+  peserta?:
+    | (Pick<Peserta, 'id' | 'namaLengkap' | 'email' | 'noTelepon' | 'wajibGantiPassword' | 'statusUjian' | 'statusKelulusan' | 'sumberInformasiId' | 'sumberInformasi' | 'golonganKelasId' | 'jurusanId' | 'beasiswaId'> & {
+        /** Data pendidikan di biodata peserta (null = belum ada biodata). */
+        biodata?: Pick<PesertaBiodata, 'id' | 'jurusanSekolah' | 'tahunLulus' | 'jenisPengelolaanSekolah' | 'alamatSekolah' | 'nisn'> | null;
+      })
+    | null;
   noTelepon: string | null;
+  /** Popup Sumber Informasi: sumber info kampus, keterangan, kode unik; terkunci = hanya bisa dibaca. */
+  sumberInformasiId?: number | null;
+  sumberInformasi?: { id: number; namaInformasi: string } | null;
+  keteranganSumber?: string | null;
+  kodeUnik?: string | null;
+  sumberTerkunci?: boolean;
+  /** Popup Sumber Informasi 2: kelas perkuliahan, beasiswa, ukuran almamater, jurusan pilihan 1–3; terkunci = hanya bisa dibaca. */
+  golonganKelasId?: number | null;
+  golonganKelas?: { id: number; namaKelas: string } | null;
+  beasiswaId?: number | null;
+  beasiswa?: { id: number; namaBeasiswa: string } | null;
+  ukuranAlmamater?: string | null;
+  jurusan1Id?: number | null;
+  jurusan2Id?: number | null;
+  jurusan3Id?: number | null;
+  jurusan1?: Pick<Jurusan, 'id' | 'namaJurusan' | 'jenjangPendidikan'> | null;
+  dataPmbTerkunci?: boolean;
   skemaPembiayaan: SkemaPembiayaan;
   formulirPendaftaran: boolean;
   lulusTesMasuk: boolean;
   akunBeasiswa: boolean | null;
   kelengkapanPersyaratan: boolean;
+  /** Turunan (hanya baris tertaut peserta): semua Dokumen Pendaftaran / Dokumen Pendaftaran 2 sudah diupload. */
+  dokumenUmumLengkap?: boolean;
+  dokumenBeasiswaLengkap?: boolean;
   statusBeasiswa: StatusBeasiswa | null;
   statusKuliah: StatusKuliah;
   createdAt?: string;
@@ -350,9 +441,22 @@ export type StatusKeluarMahasiswa =
   | 'PUTUS_SEKOLAH'
   | 'WAFAT'
   | 'HILANG'
-  | 'LAINNYA';
+  | 'LAINNYA'
+  | 'MENUNGGU_UKOM';
 
 export interface TahunAjaran {
+  id: number;
+  nama: string;
+  tahunMulai: number;
+  tahunSelesai: number;
+  jenisSemester: SemesterGanjilGenap;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/** Tahun Ajaran PMB / Keuangan (Modul Admin › Master) — periode tersendiri per modul, terpisah dari tahun akademik. */
+export interface TahunModul {
   id: number;
   nama: string;
   tahunMulai: number;
@@ -481,10 +585,31 @@ export interface AuditLogSnapshot {
   after: Record<string, unknown> | null;
 }
 
+export interface TahunAkademikOption {
+  id: number;
+  nama: string;
+  jenisSemester: 'GANJIL' | 'GENAP';
+  isActive: boolean;
+  label: string;
+}
+
+export interface ProdiOption {
+  kodeProdi: string;
+  nama: string;
+  jurusanIds: number[];
+}
+
+/** Konteks sesi staff yang dipilih saat login: tahun akademik acuan & prodi (modul Prodi). */
+export interface AcademicContext {
+  tahunAkademik: TahunAkademikOption | null;
+  prodi: ProdiOption | null;
+}
+
 export interface LoginResult {
   user: User;
   accessToken: string;
   refreshToken: string;
+  context: AcademicContext;
 }
 
 export interface MeResult {
@@ -498,16 +623,28 @@ export interface Dosen {
   id: number;
   nik: string | null;
   nidn: string;
+  nuptk: string | null;
   namaLengkap: string;
+  gelar: string | null;
+  jurusanId: number | null;
+  jurusan?: Jurusan | null;
   tempatLahir: string | null;
   tanggalLahir: string | null;
   jenisKelamin: 'L' | 'P' | null;
   pendidikanAkhir: string | null;
   agama: string | null;
   telpHp: string | null;
+  /** Foto profil (data URL base64), hanya dimuat di profil dosen login. */
+  photo?: string | null;
+  noWhatsapp?: string | null;
+  jabatanFungsional?: string | null;
+  kum?: number | null;
   email: string | null;
   alamat: string | null;
   statusDosen: 'TETAP' | 'TIDAK_TETAP' | null;
+  /** Internal = dosen homebase Poltek; Eksternal = dosen luar/LB (termasuk staf struktural yang mengajar). */
+  jenisDosen: 'INTERNAL' | 'EKSTERNAL';
+  keterangan: string | null;
   status: string | null;
   waktu: 'M' | 'P' | null;
   tmt: string | null;
@@ -537,12 +674,22 @@ export interface DosenStatItem {
   total: number;
 }
 
+export interface DosenProdiStatItem {
+  namaJurusan: string | null;
+  total: number;
+}
+
 export type HariKuliah = 'SENIN' | 'SELASA' | 'RABU' | 'KAMIS' | 'JUMAT' | 'SABTU';
+
+/** Dosen pengampu jadwal + data tabel penghubung (SKS yang diberikan ke dosen tsb). */
+export type DosenPengampu = Dosen & { JadwalKuliahDosenPengampu?: { sks: number | null } };
 
 export interface JadwalKuliah {
   id: number;
   kelas: string;
   kodeMataKuliah: string;
+  /** Jumlah mahasiswa yang mengambil kelas ini di KRS (hanya bila diminta: withJumlahMahasiswa=true). */
+  jumlahMahasiswa?: number;
   namaMataKuliah: string;
   sks: number | null;
   sksTeori: number;
@@ -550,7 +697,7 @@ export interface JadwalKuliah {
   sksLab: number;
   dosenKordinatorId: number;
   dosenKordinator?: Dosen;
-  dosenPengampu?: Dosen[];
+  dosenPengampu?: DosenPengampu[];
   tahunAjaranId: number | null;
   tahunAjaran?: TahunAjaran | null;
   mataKuliahId: number | null;
@@ -561,8 +708,19 @@ export interface JadwalKuliah {
   ruangan: string | null;
   gcr: string | null;
   isActive: boolean;
+  // Diisi oleh endpoint jadwal-tersedia portal mahasiswa: nilai sebelumnya untuk mata kuliah ini
+  // atau mata kuliah setaranya di kurikulum lain (Master Konversi Kurikulum).
+  mengulang?: JadwalMengulangInfo | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface JadwalMengulangInfo {
+  kodeMataKuliah: string;
+  namaMataKuliah: string;
+  grade: string;
+  semester: number;
+  bedaKurikulum: boolean;
 }
 
 export type StatusKehadiranDosen = 'HADIR' | 'TIDAK_HADIR' | 'IZIN' | 'SAKIT';
@@ -575,6 +733,8 @@ export interface KehadiranDosen {
   dosen?: Dosen;
   tanggalRealisasi: string;
   status: StatusKehadiranDosen;
+  /** Uraian materi (Pokok Bahasan). */
+  uraian?: string | null;
   keterangan: string | null;
   createdAt?: string;
   updatedAt?: string;
@@ -586,6 +746,7 @@ export interface NilaiMahasiswaMahasiswa {
   namaLengkap: string;
   kelas: string;
   programStudi: string | null;
+  angkatan: number;
 }
 
 export type Grade = 'A' | 'B' | 'C' | 'D' | 'E';
@@ -710,7 +871,10 @@ export type JenisSurat =
   | 'OBSERVASI'
   | 'KKP'
   | 'REKOMENDASI_KAMPUS_MERDEKA'
-  | 'UJIAN_UAS';
+  | 'UJIAN_UAS'
+  | 'DAFTAR_SIDANG_TA'
+  | 'REKAP_NILAI_SIDANG'
+  | 'JURNAL_KONSULTASI_TA';
 
 export type StatusSuratKeterangan = 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
 
@@ -761,7 +925,12 @@ export interface SuratKeteranganCetakData {
     tanggalLahir: string | null;
     noKtp: string | null;
     alamat: string | null;
+    hp: string | null;
   };
+  /** Hanya terisi untuk DAFTAR_SIDANG_TA & REKAP_NILAI_SIDANG: [pembimbing 1, pembimbing 2]. */
+  pembimbing: (string | null)[];
+  /** Data Pendaftar/Jadwal Sidang terakhir; null untuk jenis surat lain. */
+  sidang: { judul: string | null; tahunAjaran: string | null; penguji: (string | null)[] } | null;
   jurusan: {
     namaJurusan: string;
     namaFakultas: string | null;
@@ -823,11 +992,41 @@ export interface SyncFingerInsertResult {
   unmatchedCount: number;
 }
 
+/** Mata kuliah milik satu kurikulum (Kurikulum 1 ──< N MataKuliah). */
 export interface MataKuliah {
   id: number;
+  kurikulumId: number;
+  kode: string;
+  mataKuliah: string;
+  mataKuliahEn?: string | null;
+  kelompokMataKuliah?: KelompokMataKuliah | null;
+  kelompokKurikulum?: KelompokKurikulum | null;
+  jenisMataKuliah?: JenisMataKuliah | null;
+  sksTeori: number;
+  sksPraktek: number;
+  sksLab: number;
+  sksSimulasi: number;
+  sksTotal: number;
+  kelompokKompetensi?: KelompokKompetensi | null;
+  kompIlmuKomputer?: string | null;
+  mataKuliahMinat?: string | null;
+  muatanMataKuliah?: string | null;
+  metodePembelajaran?: string | null;
+  idMatkul?: string | null;
+  semester: number | null;
+  /** Mata kuliah berbasis OBE (Outcome-Based Education). */
+  isObe: boolean;
+  /** Target capaian MK OBE (0–100). */
+  targetCpl?: number | null;
+  targetCpmk?: number | null;
+  silabus?: string | null;
+  /** Kunci tema ikon ilustrasi E-learning; null = otomatis dari nama. */
+  ikon?: string | null;
+  /** Alias kompatibel (= kode / mataKuliah / sksTotal). */
   kodeMk: string;
   namaMk: string;
   sks: number;
+  kurikulum?: Kurikulum | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -841,6 +1040,9 @@ export interface DosenPortalJadwal {
   namaMataKuliah: string;
   sks: number | null;
   ruangan: string | null;
+  hari?: string[] | null;
+  jam?: number | null;
+  semester?: number | null;
   mataKuliah?: MataKuliah | null;
 }
 
@@ -855,8 +1057,34 @@ export interface RealisasiMengajar {
   pertemuanKe: number | null;
   status: StatusKehadiranDosen;
   keterangan: string | null;
+  /** Uraian materi/pokok bahasan pertemuan. */
+  uraian: string | null;
+  /** Dosen yang mencatat/mengajar pertemuan ini. */
+  dosen?: { id: number; namaLengkap: string; gelar: string | null } | null;
+  /** Jumlah mahasiswa berstatus HADIR pada pertemuan ini. */
+  jumlahHadir?: number;
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** Kepala halaman Realisasi Mengajar untuk satu kelas. */
+export interface RingkasanKelasDosen {
+  jadwalKuliahId: number;
+  programStudi: string | null;
+  periode: string | null;
+  kodeMataKuliah: string;
+  namaMataKuliah: string;
+  sks: number | null;
+  kelas: string;
+  semester: number | null;
+  rencanaTatapMuka: number;
+  jumlahPertemuan: number;
+  jumlahMahasiswa: number;
+  tanggalMulaiEfektif: string | null;
+  tanggalAkhirEfektif: string | null;
+  metodePembelajaran: string | null;
+  ruangan: string | null;
+  dosenKordinator: string | null;
 }
 
 export interface RekapMahasiswaRow {
@@ -871,6 +1099,8 @@ export interface PresensiMahasiswaRow {
   mahasiswaId: number;
   nim: string;
   namaLengkap: string;
+  /** Status kelas (Golongan Kelas): Reguler / Karyawan. */
+  sistemKuliah: string | null;
   status: StatusKehadiranMahasiswa | null;
   keterangan: string | null;
 }
@@ -881,6 +1111,28 @@ export interface SavePresensiMahasiswaItem {
   keterangan?: string | null;
 }
 
+export type PeranSidang = 'PEMBIMBING_1' | 'PEMBIMBING_2' | 'PENGUJI_1' | 'PENGUJI_2';
+
+export interface KoreksiSidangItem {
+  id: number;
+  pendaftarSidangId: number;
+  peran: PeranSidang;
+  babHalaman: string | null;
+  uraian: string;
+  isSelesai: boolean;
+}
+
+/** Satu baris di halaman Nilai Sidang portal dosen: satu pendaftar sidang x satu peran dosen. */
+export interface NilaiSidangRow {
+  pendaftarSidangId: number;
+  peran: PeranSidang;
+  judul: string;
+  mahasiswa: { id: number; nim: string; namaLengkap: string };
+  jadwalSidang: { tanggal: string; jam: string; ruangan: string | null } | null;
+  nilai: number | null;
+  grade: string | null;
+}
+
 export interface SilabusMatakuliahRow {
   kodeMk: string;
   namaMk: string;
@@ -888,7 +1140,8 @@ export interface SilabusMatakuliahRow {
   silabus: string | null;
 }
 
-export type StatusKrs = 'DRAFT' | 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK';
+/** BELUM_ISI hanya dari filter "Belum Isi KRS" (baris mahasiswa tanpa KRS, tidak tersimpan). */
+export type StatusKrs = 'DRAFT' | 'DIAJUKAN' | 'DISETUJUI' | 'DITOLAK' | 'BELUM_ISI';
 
 export interface KrsDetail {
   id: number;
@@ -917,10 +1170,16 @@ export interface NilaiKhsEntry {
   kodeMataKuliah: string;
   namaMataKuliah: string;
   sks: number;
-  nilai: number;
-  grade: string;
+  /** null = masih terkunci karena angket dosen kelas ini belum diisi (perluIsiAngket). */
+  nilai: number | null;
+  grade: string | null;
   bobot: number;
   mutu: number;
+  // false = mata kuliah ini sudah diulang (termasuk lewat konversi kurikulum); tidak dihitung di IPK.
+  diakui?: boolean;
+  /** Nilai disembunyikan sampai angket dosen kelas ini diisi (Akademik → Angket Dosen). */
+  perluIsiAngket?: boolean;
+  jadwalKuliahId?: number | null;
 }
 
 export interface KhsSemester {
@@ -929,6 +1188,8 @@ export interface KhsSemester {
   totalSks: number;
   totalMutu: number;
   ipSemester: number;
+  /** Ada nilai yang terkunci angket dosen; cetak KHS semester ini ditolak. */
+  terkunciEdom?: boolean;
 }
 
 export interface Transkrip {
@@ -1086,7 +1347,7 @@ export interface KehadiranMengajarRow {
     kodeMataKuliah: string;
     namaMataKuliah: string;
     mataKuliah?: { id: number; kodeMk: string; namaMk: string } | null;
-    tahunAjaran?: { id: number; nama: string } | null;
+    tahunAjaran?: { id: number; nama: string; jenisSemester?: SemesterGanjilGenap } | null;
   };
 }
 
@@ -1116,13 +1377,50 @@ export interface PembayaranKuliah {
   updatedAt?: string;
 }
 
+export type StatusCicilan = 'LUNAS' | 'SEBAGIAN' | 'BELUM_BAYAR';
+
+/** Cicilan bulanan tagihan kuliah; status dihitung dari total dibayar (dialokasikan ke cicilan paling awal). */
+export interface TagihanCicilan {
+  id?: number;
+  cicilanKe: number;
+  /** Bulan tagihan (YYYY-MM-01). */
+  periode: string;
+  nominal: number;
+  tanggalJatuhTempo: string | null;
+  noVirtualAccount: string | null;
+  keterangan?: string | null;
+  dibayar: number;
+  sisa: number;
+  status: StatusCicilan;
+  terlambat: boolean;
+}
+
+export interface CicilanRingkas {
+  jumlah: number;
+  lunas: number;
+  berikutnya: {
+    cicilanKe: number;
+    periode: string;
+    sisa: number;
+    tanggalJatuhTempo: string | null;
+    noVirtualAccount: string | null;
+    terlambat: boolean;
+  } | null;
+}
+
 export interface TagihanKuliah {
+  /** Tagihan dari file keuangan sebelum potongan (totalTagihan = tagihanAwal - potongan). */
+  tagihanAwal?: number | string | null;
   id: number;
   mahasiswaId: number;
   mahasiswa?: Mahasiswa;
   tahunAjaranId: number;
   tahunAjaran?: TahunAjaran;
   semester: number;
+  /** Total SKS di KRS mahasiswa pada tahun akademik tagihan (null = belum ada KRS). */
+  totalSks?: number | null;
+  /** Ringkasan cicilan bulanan (null = dibayar sekaligus, tanpa cicilan). */
+  cicilan?: CicilanRingkas | null;
   sksDiambil: number;
   hargaPerSks: number;
   biayaSks: number;
@@ -1130,11 +1428,96 @@ export interface TagihanKuliah {
   biayaSpp: number;
   potongan: number;
   totalTagihan: number;
+  /** Hasil import keuangan: total bayar per tanggal import & tunggakan semester sebelumnya (terpisah). */
+  totalBayarImport: number;
+  tunggakan: number;
+  tanggalJatuhTempo: string | null;
+  noVirtualAccount: string | null;
+  keterangan: string | null;
+  sumber: 'GENERATE' | 'IMPORT';
+  importedAt: string | null;
   totalDibayar: number;
   sisaTagihan: number;
+  totalKewajiban: number;
+  statusTagihan: StatusTagihan;
   pembayaranList?: PembayaranKuliah[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+export type StatusTagihan = 'LUNAS' | 'SEBAGIAN' | 'BELUM_BAYAR';
+
+export type AksiImportTagihan = 'BARU' | 'UBAH' | 'TETAP' | 'GAGAL';
+
+export interface ImportTagihanRow {
+  rowNumber: number;
+  nim: string;
+  namaLengkap: string | null;
+  periode: string;
+  totalTagihan: number | null;
+  totalBayar: number | null;
+  tunggakan: number | null;
+  sisaBayar: number | null;
+  tanggalJatuhTempo: string | null;
+  noVirtualAccount: string | null;
+  keterangan: string | null;
+  aksi: AksiImportTagihan;
+  error?: string;
+  perubahan?: { field: string; lama: string | number | null; baru: string | number | null }[];
+}
+
+/** VA bank per mahasiswa per periode (hasil Import VA; VA berganti tiap bulan). */
+export interface VirtualAccountMahasiswa {
+  id: number;
+  mahasiswaId: number;
+  noVirtualAccount: string;
+  periodeOpen: string;
+  periodeClose: string;
+  nominal: number;
+}
+
+export interface ImportVaRow {
+  rowNumber: number;
+  nim: string;
+  namaLengkap: string | null;
+  noVirtualAccount: string | null;
+  periodeOpen: string | null;
+  periodeClose: string | null;
+  nominal: number | null;
+  aksi: AksiImportTagihan;
+  error?: string;
+}
+
+export interface ImportTagihanSummary {
+  totalRows: number;
+  baru: number;
+  ubah: number;
+  tetap: number;
+  gagal: number;
+}
+
+export interface ImportTagihanBatch {
+  id: number;
+  fileName: string | null;
+  status: 'BERHASIL' | 'SEBAGIAN' | 'GAGAL';
+  totalRows: number;
+  createdRows: number;
+  updatedRows: number;
+  unchangedRows: number;
+  failedRows: number;
+  errors: { row: number; nim: string; message: string }[] | null;
+  importedAt: string;
+  importer?: { id: number; name: string } | null;
+  logs?: {
+    id: number;
+    rowNumber: number | null;
+    nim: string | null;
+    aksi: AksiImportTagihan;
+    nilaiLama: Record<string, string | number | null> | null;
+    nilaiBaru: Record<string, string | number | null> | null;
+    pesan: string | null;
+    mahasiswa?: { id: number; nim: string; namaLengkap: string } | null;
+  }[];
 }
 
 export interface GenerateTagihanResult {
@@ -1357,6 +1740,8 @@ export interface NeracaData {
 export interface TarifTaSkripsi {
   id: number;
   periode: number;
+  tahunAjaranId: number | null;
+  tahunAjaran?: Pick<TahunAjaran, 'id' | 'nama' | 'jenisSemester'> | null;
   jurusanId: number;
   jurusan?: Jurusan;
   biayaPendaftaran: number;
@@ -1419,6 +1804,12 @@ export interface Keringanan {
   tanggal: string;
   totalTagihan: number | null;
   jumlahBayar: number;
+  /** Keringanan dihitung untuk syarat KRS / UTS / UAS (UAS = syarat akhir semester: UAS, nilai, KHS). */
+  berlakuKrs: boolean;
+  berlakuUts: boolean;
+  berlakuUas: boolean;
+  /** Lewat tanggal ini keringanan tidak dihitung lagi; null = tanpa batas. */
+  sampaiTanggal: string | null;
   alasan: string | null;
   status: StatusKeringanan;
   createdAt?: string;
@@ -1488,7 +1879,7 @@ export type SemesterGanjilGenap = 'GANJIL' | 'GENAP';
 export interface JadwalSidang {
   id: number;
   tahunAjaranId: number;
-  tahunAjaran?: Pick<TahunAjaran, 'id' | 'nama'>;
+  tahunAjaran?: Pick<TahunAjaran, 'id' | 'nama' | 'jenisSemester'>;
   semester: SemesterGanjilGenap;
   jurusanId: number;
   jurusan?: Pick<Jurusan, 'id' | 'namaJurusan' | 'kodeProdi'>;
@@ -1630,50 +2021,45 @@ export type KelompokKurikulum = 'WAJIB' | 'PILIHAN';
 export type JenisMataKuliah = 'TEORI' | 'PRAKTIK' | 'TEORI_PRAKTIK';
 export type KelompokKompetensi = 'UTAMA' | 'PENDUKUNG' | 'LAINNYA';
 
+/** Kurikulum (header) satu prodi pada satu tahun kurikulum; memiliki banyak mata kuliah. */
 export interface Kurikulum {
   id: number;
   jurusanId: number | null;
-  tahunAjaranId: number | null;
-  kode: string;
-  mataKuliah: string;
-  mataKuliahEn: string | null;
-  kelompokMataKuliah: KelompokMataKuliah | null;
-  kelompokKurikulum: KelompokKurikulum | null;
-  jenisMataKuliah: JenisMataKuliah | null;
-  sksTeori: number;
-  sksPraktek: number;
-  sksLab: number;
-  sksSimulasi: number;
-  sksTotal: number;
-  kelompokKompetensi: KelompokKompetensi | null;
-  kompIlmuKomputer: string | null;
-  mataKuliahMinat: string | null;
-  muatanMataKuliah: string | null;
-  metodePembelajaran: string | null;
+  tahunKurikulum: number | null;
+  nama: string;
   tanggalMulaiEfektif: string | null;
   tanggalAkhirEfektif: string | null;
-  idMatkul: string | null;
-  semester: number | null;
-  jurusan?: Jurusan;
-  tahunAjaran?: TahunAjaran | null;
+  keterangan?: string | null;
+  isActive: boolean;
+  jurusan?: Pick<Jurusan, 'id' | 'namaJurusan' | 'kodeProdi'> | null;
+  /** Ringkasan (list/detail): jumlah mata kuliah (total / OBE / Non OBE) & total SKS. */
+  jumlahMataKuliah?: number;
+  jumlahObe?: number;
+  jumlahNonObe?: number;
+  totalSks?: number;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export interface KurikulumIdentifier {
-  jurusanId: number;
-  tahunAjaranId: number;
+/** Pilihan kurikulum untuk dropdown. */
+export interface KurikulumOption {
+  value: number;
+  label: string;
+  jurusanId: number | null;
+  prodi: string | null;
+  tahunKurikulum: number | null;
+  isActive?: boolean;
 }
 
 export interface KonversiKurikulumRow {
-  dariKurikulum: Kurikulum;
-  keKurikulumId: number | null;
-  keKurikulum: Kurikulum | null;
+  dariMataKuliah: MataKuliah;
+  keMataKuliahId: number | null;
+  keMataKuliah: MataKuliah | null;
 }
 
 export interface KonversiKurikulumList {
   rows: KonversiKurikulumRow[];
-  keOptions: Kurikulum[];
+  keOptions: MataKuliah[];
 }
 
 export interface BiodataMahasiswaItem {

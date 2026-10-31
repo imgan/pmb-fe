@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -113,6 +114,7 @@ const items = ref<AuditLog[]>([]);
 const loading = ref(true);
 const error = ref<string | null>(null);
 const page = ref(1);
+const pageSize = ref(20);
 const meta = ref({ total: 0, page: 1, limit: 20, totalPages: 1 });
 
 const columns: DataTableColumn[] = [
@@ -143,7 +145,7 @@ const fetchItems = async () => {
   try {
     const result = await auditLogApi.list({
       page: page.value,
-      limit: 20,
+      limit: pageSize.value,
       search: search.value || undefined,
       module: filters.module || undefined,
       action: filters.action || undefined,
@@ -177,6 +179,10 @@ watch(() => [filters.module, filters.action, filters.actorType, filters.dateFrom
 });
 
 watch(page, fetchItems);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
 
 const resetFilters = () => {
   search.value = '';
@@ -310,6 +316,10 @@ const activeFilterCount = computed(
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
 
       <DataTable
         :columns="columns"

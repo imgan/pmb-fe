@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -37,6 +38,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -150,6 +152,10 @@ const handleSubmit = async () => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"

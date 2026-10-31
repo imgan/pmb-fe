@@ -28,7 +28,7 @@ const error = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    const { data } = await tahunAjaranApi.list({ limit: 200 });
+    const { data } = await tahunAjaranApi.list({ limit: 200, isActive: true });
     const uniqueYears = [...new Set(data.map((ta) => ta.tahunMulai))].sort((a, b) => b - a);
     tahunOptions.value = uniqueYears.map((year) => ({ value: year, label: String(year) }));
   } catch {

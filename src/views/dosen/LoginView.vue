@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from '@/components/ui/PasswordInput.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useDosenAuthStore } from '@/stores/dosenAuth';
@@ -20,13 +21,13 @@ const handleSubmit = async () => {
     const trimmed = identifier.value.trim();
     const isEmail = trimmed.includes('@');
     await dosenAuthStore.login({
-      ...(isEmail ? { email: trimmed } : { nidn: trimmed }),
+      ...(isEmail ? { email: trimmed } : { nip: trimmed }),
       password: password.value,
     });
-    const redirect = (route.query.redirect as string) || '/dosen/kehadiran-mengajar';
+    const redirect = (route.query.redirect as string) || '/dosen/dashboard';
     router.push(redirect);
   } catch (err) {
-    error.value = extractErrorMessage(err, 'NIDN/email atau password salah');
+    error.value = extractErrorMessage(err, 'NIP atau password salah');
   } finally {
     loading.value = false;
   }
@@ -41,7 +42,7 @@ const handleSubmit = async () => {
           <span class="material-symbols-outlined" style="font-size: 28px">school</span>
         </div>
         <h1 class="font-semibold text-headline-lg text-primary">Portal Dosen</h1>
-        <p class="text-body-md text-on-surface-variant mt-1">Masuk menggunakan NIDN/email &amp; password Anda.</p>
+        <p class="text-body-md text-on-surface-variant mt-1">Masuk menggunakan NIP &amp; password Anda.</p>
       </div>
 
       <form
@@ -53,7 +54,7 @@ const handleSubmit = async () => {
         </div>
 
         <label class="block">
-          <span class="block font-medium text-label-md text-on-surface mb-2">NIDN / Email</span>
+          <span class="block font-medium text-label-md text-on-surface mb-2">NIP</span>
           <input
             v-model="identifier"
             type="text"
@@ -65,13 +66,7 @@ const handleSubmit = async () => {
 
         <label class="block">
           <span class="block font-medium text-label-md text-on-surface mb-2">Password</span>
-          <input
-            v-model="password"
-            type="password"
-            required
-            autocomplete="current-password"
-            class="w-full px-3 py-2 border border-outline-variant rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-          />
+          <PasswordInput v-model="password" required autocomplete="current-password" />
         </label>
 
         <button

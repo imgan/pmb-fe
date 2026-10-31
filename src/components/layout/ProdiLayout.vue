@@ -4,7 +4,10 @@ import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { useMenuStore } from '@/stores/menu';
 import { materialIcon } from '@/utils/icons';
+import { MENU } from '@/constants/menuCodes';
 import ProfileSettingsModal from '@/components/layout/ProfileSettingsModal.vue';
+import SidebarBrand from '@/components/layout/SidebarBrand.vue';
+import AcademicContextCard from '@/components/layout/AcademicContextCard.vue';
 import type { MenuTreeNode } from '@/types/entities';
 
 const authStore = useAuthStore();
@@ -27,7 +30,10 @@ const isActive = (path: string | null) => {
 };
 const hasActiveChild = (item: MenuTreeNode) => item.children.some((child) => isActive(child.path));
 
-const sidebarTree = computed(() => menuStore.treeFor('prodi'));
+// Setting Prodi dibuka dari tombol pojok kanan atas, tidak tampil di sidebar.
+const sidebarTree = computed(() => menuStore.treeFor('prodi').filter((m) => m.code !== MENU.PRODI_SETTING_MANAGEMENT));
+const bisaSetting = computed(() => authStore.permissionsFor(MENU.PRODI_SETTING_MANAGEMENT).canRead);
+const settingAktif = computed(() => route.path === '/prodi/setting' || route.path.startsWith('/prodi/setting/'));
 
 watch(
   sidebarTree,
@@ -60,7 +66,16 @@ const handleLogout = () => {
       <button type="button" class="text-on-surface" @click="mobileOpen = true">
         <span class="material-symbols-outlined">menu</span>
       </button>
-      <span class="ml-3 font-semibold text-headline-md text-primary">Prodi Console</span>
+      <span class="ml-3 font-semibold text-headline-md text-primary">Program Studi</span>
+      <RouterLink
+        v-if="bisaSetting"
+        to="/prodi/setting"
+        class="ml-auto inline-flex items-center justify-center w-9 h-9 rounded-full text-on-surface-variant hover:bg-surface-container-highest"
+        :class="{ 'bg-primary-container text-on-primary-container': settingAktif }"
+        title="Setting Prodi"
+      >
+        <span class="material-symbols-outlined">settings</span>
+      </RouterLink>
     </div>
 
     <div v-if="mobileOpen" class="fixed inset-0 bg-inverse-surface/50 z-40 md:hidden" @click="mobileOpen = false" />
@@ -70,20 +85,7 @@ const handleLogout = () => {
       class="flex flex-col bg-surface-container-low shadow-sm h-full w-64 fixed left-0 top-0 p-4 z-50 transition-transform overflow-y-auto"
       :class="mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
     >
-      <div class="mb-8 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-semibold shrink-0">
-            {{ authStore.user?.name?.charAt(0)?.toUpperCase() ?? 'A' }}
-          </div>
-          <div>
-            <h2 class="font-semibold text-headline-md text-primary truncate">Prodi Console</h2>
-            <p class="text-body-sm text-on-surface-variant truncate">Program Studi</p>
-          </div>
-        </div>
-        <button type="button" class="md:hidden text-on-surface-variant" @click="mobileOpen = false">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
+      <SidebarBrand label="Program Studi" icon="auto_stories" @close="mobileOpen = false" />
 
       <nav class="flex-1 space-y-1">
         <template v-for="item in sidebarTree" :key="item.id">
@@ -148,6 +150,7 @@ const handleLogout = () => {
       </nav>
 
       <div class="mt-4 pt-4 border-t border-outline-variant">
+        <AcademicContextCard show-prodi />
         <button
           type="button"
           class="w-full flex items-center gap-3 mb-3 p-1 -m-1 rounded-md hover:bg-surface-container-highest transition-colors text-left"
@@ -179,8 +182,27 @@ const handleLogout = () => {
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 md:ml-64 mt-14 md:mt-0 p-4 md:p-12 bg-surface min-h-screen">
-      <RouterView />
+    <main class="flex-1 md:ml-64 mt-14 md:mt-0 bg-surface min-h-screen flex flex-col">
+      <div class="flex-1 p-4 md:p-12">
+        <!-- Pojok kanan atas: Setting Prodi -->
+        <div v-if="bisaSetting" class="hidden md:flex justify-end -mt-8 mb-2">
+          <RouterLink
+            to="/prodi/setting"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-label-md transition-colors"
+            :class="
+              settingAktif
+                ? 'bg-primary-container text-on-primary-container border-primary'
+                : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-highest'
+            "
+            title="Setting Program Studi"
+          >
+            <span class="material-symbols-outlined" style="font-size: 18px">settings</span>
+            Setting Prodi
+          </RouterLink>
+        </div>
+        <RouterView />
+      </div>
+
     </main>
 
     <ProfileSettingsModal v-model="isProfileOpen" />

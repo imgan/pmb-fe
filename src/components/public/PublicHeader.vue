@@ -16,7 +16,6 @@ const kampusStore = useKampusStore();
 const mobileMenuOpen = ref(false);
 const openDropdown = ref<string | null>(null);
 const mobileOpenDropdown = ref<string | null>(null);
-const accountMenuOpen = ref(false);
 
 const fallbackNavLinks = [
   { label: 'Beranda', href: '/' },
@@ -146,40 +145,14 @@ onMounted(async () => {
 
       <div class="flex items-center gap-3">
         <template v-if="pesertaAuthStore.isAuthenticated">
-          <div
-            class="relative"
-            @mouseenter="accountMenuOpen = true"
-            @mouseleave="accountMenuOpen = false"
+          <!-- Menu akun (Status / Biodata / Dokumen / Keluar) ada di sidebar kiri halaman peserta (PesertaSidebar). -->
+          <RouterLink
+            to="/pendaftaran/status"
+            class="bg-primary text-on-primary text-label-md font-semibold px-6 py-2.5 rounded hover:bg-primary-container transition-all shadow-sm flex items-center gap-2"
           >
-            <button
-              type="button"
-              class="bg-primary text-on-primary text-label-md font-semibold px-6 py-2.5 rounded hover:bg-primary-container transition-all shadow-sm flex items-center gap-2"
-            >
-              Halo, {{ pesertaAuthStore.peserta?.namaLengkap.split(' ')[0] }}
-              <span class="material-symbols-outlined transition-transform" style="font-size: 18px" :class="{ 'rotate-180': accountMenuOpen }">
-                expand_more
-              </span>
-            </button>
-            <Transition name="dropdown-fade">
-              <div
-                v-if="accountMenuOpen"
-                class="absolute top-full right-0 w-56 bg-surface-container-lowest border border-outline-variant rounded-lg shadow-[0px_8px_24px_rgba(27,54,93,0.15)] py-2 mt-0 z-10"
-              >
-                <RouterLink to="/pendaftaran/status" class="flex items-center gap-2 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors">
-                  <span class="material-symbols-outlined" style="font-size: 18px">timeline</span>
-                  Status Pendaftaran
-                </RouterLink>
-                <RouterLink to="/pendaftaran/biodata" class="flex items-center gap-2 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors">
-                  <span class="material-symbols-outlined" style="font-size: 18px">person</span>
-                  Biodata Saya
-                </RouterLink>
-                <RouterLink to="/pendaftaran/dokumen" class="flex items-center gap-2 px-4 py-2.5 text-body-sm text-on-surface hover:bg-surface-container transition-colors">
-                  <span class="material-symbols-outlined" style="font-size: 18px">upload_file</span>
-                  Dokumen Saya
-                </RouterLink>
-              </div>
-            </Transition>
-          </div>
+            <span class="material-symbols-outlined text-[20px]">account_circle</span>
+            Halo, {{ pesertaAuthStore.peserta?.namaLengkap.split(' ')[0] }}
+          </RouterLink>
         </template>
         <template v-else>
           <RouterLink

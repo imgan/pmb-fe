@@ -8,6 +8,7 @@ export interface KehadiranDosenPayload {
   dosenId: number;
   tanggalRealisasi: string;
   status?: StatusKehadiranDosen;
+  uraian?: string | null;
   keterangan?: string | null;
 }
 

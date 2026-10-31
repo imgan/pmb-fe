@@ -5,6 +5,7 @@ import { usePesertaAuthStore } from '@/stores/pesertaAuth';
 import { useDosenAuthStore } from '@/stores/dosenAuth';
 import { useMahasiswaAuthStore } from '@/stores/mahasiswaAuth';
 import { MENU } from '@/constants/menuCodes';
+import { FEEDER_ENTITIES } from '@/constants/feederEntities';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -13,6 +14,10 @@ declare module 'vue-router' {
     pesertaAuth?: boolean;
     dosenAuth?: boolean;
     mahasiswaAuth?: boolean;
+    /** Key entitas untuk halaman generik Feeder PDDIKTI (modul SIM). */
+    feederEntity?: string;
+    /** Judul halaman untuk view placeholder yang dipakai beberapa route. */
+    title?: string;
   }
 }
 
@@ -49,6 +54,13 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
   {
+    // Wajib dibuka saat akun peserta masih memakai password awal (nomor HP).
+    path: '/pendaftaran/ganti-password',
+    name: 'pendaftaran-ganti-password',
+    component: () => import('@/views/public/PesertaGantiPasswordView.vue'),
+    meta: { pesertaAuth: true },
+  },
+  {
     path: '/pendaftaran/biodata',
     name: 'pendaftaran-biodata',
     component: () => import('@/views/public/BiodataView.vue'),
@@ -58,6 +70,30 @@ const routes: RouteRecordRaw[] = [
     path: '/pendaftaran/dokumen',
     name: 'pendaftaran-dokumen',
     component: () => import('@/views/public/UploadDokumenView.vue'),
+    meta: { pesertaAuth: true },
+  },
+  {
+    path: '/pendaftaran/dokumen-beasiswa',
+    name: 'pendaftaran-dokumen-beasiswa',
+    component: () => import('@/views/public/UploadDokumenView.vue'),
+    meta: { pesertaAuth: true, dokumenBeasiswa: true },
+  },
+  {
+    path: '/pendaftaran/tes-ujian',
+    name: 'pendaftaran-tes-ujian',
+    component: () => import('@/views/public/TesUjianView.vue'),
+    meta: { pesertaAuth: true },
+  },
+  {
+    path: '/pendaftaran/tes-ujian/:id/kerjakan',
+    name: 'pendaftaran-tes-ujian-kerjakan',
+    component: () => import('@/views/public/KerjakanUjianView.vue'),
+    meta: { pesertaAuth: true },
+  },
+  {
+    path: '/pendaftaran/data-pendaftaran',
+    name: 'pendaftaran-data-pendaftaran',
+    component: () => import('@/views/public/DataPendaftaranView.vue'),
     meta: { pesertaAuth: true },
   },
   {
@@ -98,7 +134,13 @@ const routes: RouteRecordRaw[] = [
     path: '/dosen',
     component: () => import('@/components/layout/DosenLayout.vue'),
     children: [
-      { path: '', redirect: '/dosen/kehadiran-mengajar' },
+      { path: '', redirect: '/dosen/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'dosen-dashboard',
+        component: () => import('@/views/dosen/DashboardView.vue'),
+        meta: { dosenAuth: true },
+      },
       {
         path: 'kehadiran-mengajar',
         name: 'dosen-kehadiran-mengajar',
@@ -106,9 +148,98 @@ const routes: RouteRecordRaw[] = [
         meta: { dosenAuth: true },
       },
       {
-        path: 'rekap-mahasiswa',
-        name: 'dosen-rekap-mahasiswa',
-        component: () => import('@/views/dosen/RekapMahasiswaView.vue'),
+        path: 'e-learning',
+        name: 'dosen-elearning',
+        component: () => import('@/views/dosen/ElearningView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'e-learning/my-class',
+        name: 'dosen-elearning-myclass',
+        component: () => import('@/views/dosen/ElearningMyClassView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'e-learning/timeline',
+        name: 'dosen-elearning-timeline',
+        component: () => import('@/views/dosen/ElearningTimelineView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'e-learning/obrolan',
+        name: 'dosen-elearning-obrolan',
+        component: () => import('@/views/ElearningObrolanView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'e-learning/jelajah',
+        name: 'dosen-elearning-jelajah',
+        component: () => import('@/views/ElearningJelajahView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        // Laporan tugas per kelas + unduh Excel — sebelum 'e-learning/:id'.
+        path: 'e-learning/laporan-tugas',
+        name: 'dosen-elearning-laporan-tugas',
+        component: () => import('@/views/dosen/ElearningLaporanTugasView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'e-learning/:id',
+        name: 'dosen-elearning-kelas',
+        component: () => import('@/views/dosen/ElearningKelasView.vue'),
+        props: true,
+        meta: { dosenAuth: true },
+      },
+      // Menu "Mata Kuliah" dosen digabung ke Input Nilai (daftar mata kuliah + input nilai per kelas).
+      { path: 'mata-kuliah', name: 'dosen-mata-kuliah', redirect: { name: 'dosen-periodik' } },
+      {
+        // Halaman RPS yang sama dengan Prodi; klien API & hak ubah versi dosen (meta.portal).
+        path: 'mata-kuliah/:id/rps',
+        name: 'dosen-mata-kuliah-rps',
+        component: () => import('@/views/prodi/kurikulum/RpsMataKuliahView.vue'),
+        props: true,
+        meta: { dosenAuth: true, portal: 'dosen', backRoute: 'dosen-periodik', breadcrumb: 'Dosen / Perkuliahan / Input Nilai' },
+      },
+      {
+        path: 'kelas-kuliah',
+        name: 'dosen-kelas-kuliah',
+        component: () => import('@/views/dosen/KelasKuliahView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        // Halaman detail kelas yang sama dengan Prodi; klien API versi dosen (meta.portal).
+        path: 'kelas-kuliah/:id',
+        name: 'dosen-kelas-kuliah-detail',
+        component: () => import('@/views/prodi/perkuliahan/KelasKuliahDetailView.vue'),
+        props: true,
+        meta: { dosenAuth: true, portal: 'dosen', backRoute: 'dosen-kelas-kuliah' },
+      },
+      {
+        path: 'pengumuman',
+        name: 'dosen-pengumuman',
+        component: () => import('@/views/dosen/PengumumanView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'laporan-elearning',
+        name: 'dosen-laporan-elearning',
+        component: () => import('@/views/dosen/LaporanElearningView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'rekap',
+        name: 'dosen-rekap',
+        component: () => import('@/views/dosen/RekapView.vue'),
+        meta: { dosenAuth: true },
+      },
+      // URL lama (sebelum digabung) diarahkan ke tab yang sesuai.
+      { path: 'rekap-mahasiswa', name: 'dosen-rekap-mahasiswa', redirect: { name: 'dosen-rekap', query: { tab: 'mahasiswa' } } },
+      { path: 'rekap-realisasi', name: 'dosen-rekap-realisasi', redirect: { name: 'dosen-rekap', query: { tab: 'realisasi' } } },
+      {
+        path: 'jadwal-ujian',
+        name: 'dosen-jadwal-ujian',
+        component: () => import('@/views/dosen/JadwalUjianView.vue'),
         meta: { dosenAuth: true },
       },
       {
@@ -124,15 +255,58 @@ const routes: RouteRecordRaw[] = [
         meta: { dosenAuth: true },
       },
       {
+        path: 'referensi-judul',
+        name: 'dosen-referensi-judul',
+        component: () => import('@/views/dosen/ReferensiJudulView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'mahasiswa-pa',
+        name: 'dosen-mahasiswa-pa',
+        component: () => import('@/views/dosen/MahasiswaPaView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'kesediaan-mengajar',
+        name: 'dosen-kesediaan-mengajar',
+        component: () => import('@/views/dosen/KesediaanMengajarView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
         path: 'panduan-sistem',
         name: 'dosen-panduan-sistem',
         component: () => import('@/views/dosen/PanduanSistemView.vue'),
         meta: { dosenAuth: true },
       },
       {
+        // Persetujuan KRS oleh dosen pembimbing akademik.
+        path: 'krs-bimbingan',
+        name: 'dosen-krs-bimbingan',
+        component: () => import('@/views/dosen/KrsBimbinganView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
         path: 'silabus-matakuliah',
         name: 'dosen-silabus-matakuliah',
         component: () => import('@/views/dosen/SilabusMatakuliahView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'bimbingan-ta',
+        name: 'dosen-bimbingan-ta',
+        component: () => import('@/views/dosen/BimbinganTaView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'nilai-sidang',
+        name: 'dosen-nilai-sidang',
+        component: () => import('@/views/dosen/NilaiSidangView.vue'),
+        meta: { dosenAuth: true },
+      },
+      {
+        path: 'lembar-koreksi',
+        name: 'dosen-lembar-koreksi',
+        component: () => import('@/views/dosen/LembarKoreksiView.vue'),
         meta: { dosenAuth: true },
       },
     ],
@@ -154,6 +328,12 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard',
         name: 'mahasiswa-dashboard',
         component: () => import('@/views/mahasiswa/DashboardView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'biodata',
+        name: 'mahasiswa-biodata',
+        component: () => import('@/views/mahasiswa/BiodataView.vue'),
         meta: { mahasiswaAuth: true },
       },
       {
@@ -181,9 +361,153 @@ const routes: RouteRecordRaw[] = [
         meta: { mahasiswaAuth: true },
       },
       {
+        path: 'pembayaran',
+        name: 'mahasiswa-pembayaran',
+        component: () => import('@/views/mahasiswa/PembayaranView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
         path: 'surat-keterangan',
         name: 'mahasiswa-surat-keterangan',
         component: () => import('@/views/mahasiswa/SuratKeteranganView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      // Pengajuan (dropdown di nav): Cetak Surat (route surat-keterangan di atas) + pengajuan lain
+      // yang alurnya belum dibuat — sementara menampilkan halaman "segera tersedia".
+      {
+        path: 'pengajuan/cuti',
+        name: 'mahasiswa-pengajuan-cuti',
+        component: () => import('@/views/mahasiswa/PengajuanCutiView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'pengajuan/judul-skripsi',
+        name: 'mahasiswa-pengajuan-judul',
+        component: () => import('@/views/mahasiswa/TugasAkhirView.vue'),
+        meta: { mahasiswaAuth: true, title: 'Pendaftaran Judul Skripsi/TA' },
+      },
+      {
+        path: 'pengajuan/kkp',
+        name: 'mahasiswa-pengajuan-kkp',
+        component: () => import('@/views/mahasiswa/PengajuanKkpView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'pengajuan/sidang',
+        name: 'mahasiswa-pengajuan-sidang',
+        component: () => import('@/views/mahasiswa/SidangView.vue'),
+        meta: { mahasiswaAuth: true, title: 'Pengajuan Sidang' },
+      },
+      {
+        path: 'panduan',
+        name: 'mahasiswa-panduan',
+        component: () => import('@/views/mahasiswa/PanduanView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'ktm',
+        name: 'mahasiswa-ktm',
+        component: () => import('@/views/mahasiswa/KtmView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'pengumuman',
+        name: 'mahasiswa-pengumuman',
+        component: () => import('@/views/mahasiswa/PengumumanView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      // Data Kampus (dropdown di nav): kurikulum, kehadiran, hasil studi.
+      {
+        path: 'kurikulum',
+        name: 'mahasiswa-kurikulum',
+        component: () => import('@/views/mahasiswa/KurikulumView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'kalender-akademik',
+        name: 'mahasiswa-kalender-akademik',
+        component: () => import('@/views/mahasiswa/KalenderAkademikView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'angket-dosen',
+        name: 'mahasiswa-angket-dosen',
+        component: () => import('@/views/mahasiswa/AngketDosenView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'kehadiran',
+        name: 'mahasiswa-kehadiran',
+        component: () => import('@/views/mahasiswa/KehadiranView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'bimbingan',
+        name: 'mahasiswa-bimbingan',
+        component: () => import('@/views/mahasiswa/BimbinganView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'informasi-dosen',
+        name: 'mahasiswa-informasi-dosen',
+        component: () => import('@/views/mahasiswa/InformasiDosenView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        // E-learning mahasiswa: tampilan sama dengan dosen (menu samping), tanpa panel "Bagikan".
+        path: 'e-learning',
+        name: 'mahasiswa-elearning',
+        component: () => import('@/views/mahasiswa/ElearningBerandaView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'e-learning/my-class',
+        name: 'mahasiswa-elearning-myclass',
+        component: () => import('@/views/mahasiswa/ElearningMyClassView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        // My Team: tugas & konten grup (target GRUP) yang memuat mahasiswa.
+        path: 'e-learning/my-team',
+        name: 'mahasiswa-elearning-myteam',
+        component: () => import('@/views/mahasiswa/ElearningMyTeamView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'e-learning/timeline',
+        name: 'mahasiswa-elearning-timeline',
+        component: () => import('@/views/mahasiswa/ElearningBerandaView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'e-learning/learning-history',
+        name: 'mahasiswa-elearning-history',
+        component: () => import('@/views/mahasiswa/ElearningHistoryView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'e-learning/obrolan',
+        name: 'mahasiswa-elearning-obrolan',
+        component: () => import('@/views/ElearningObrolanView.vue'),
+        meta: { mahasiswaAuth: true, portal: 'mahasiswa' },
+      },
+      {
+        path: 'e-learning/jelajah',
+        name: 'mahasiswa-elearning-jelajah',
+        component: () => import('@/views/ElearningJelajahView.vue'),
+        meta: { mahasiswaAuth: true, portal: 'mahasiswa' },
+      },
+      {
+        // Konten satu kelas (tanpa :id = semua kelas); ?konten=<id> langsung membuka konten.
+        path: 'e-learning/kelas/:id?',
+        name: 'mahasiswa-elearning-kelas',
+        component: () => import('@/views/mahasiswa/ElearningView.vue'),
+        meta: { mahasiswaAuth: true },
+      },
+      {
+        path: 'tiket',
+        name: 'mahasiswa-tiket',
+        component: () => import('@/views/mahasiswa/TiketView.vue'),
         meta: { mahasiswaAuth: true },
       },
     ],
@@ -268,6 +592,12 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.GELOMBANG_MANAGEMENT },
       },
       {
+        path: 'tes-ujian',
+        name: 'tes-ujian',
+        component: () => import('@/views/master/TesUjianView.vue'),
+        meta: { menuCode: MENU.TES_UJIAN_MANAGEMENT },
+      },
+      {
         path: 'kampus',
         name: 'kampus',
         component: () => import('@/views/master/KampusView.vue'),
@@ -303,24 +633,30 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/reporting/ReportingView.vue'),
         meta: { menuCode: MENU.REPORTING_MANAGEMENT },
       },
+      // ---- Master grafik PMB ----
       {
-        path: 'users',
-        name: 'users',
-        component: () => import('@/views/system/UsersView.vue'),
-        meta: { menuCode: MENU.USER_MANAGEMENT },
+        path: 'grafik/banding',
+        name: 'grafik-banding',
+        component: () => import('@/views/grafik/GrafikBandingView.vue'),
+        meta: { menuCode: MENU.PMB_GRAFIK_BANDING_MANAGEMENT },
       },
       {
-        path: 'roles',
-        name: 'roles',
-        component: () => import('@/views/system/RolesView.vue'),
-        meta: { menuCode: MENU.ROLE_MANAGEMENT },
+        path: 'grafik/tahunan',
+        name: 'grafik-tahunan',
+        component: () => import('@/views/grafik/GrafikTahunanView.vue'),
+        meta: { menuCode: MENU.PMB_GRAFIK_TAHUNAN_MANAGEMENT, title: 'Grafik Tahunan' },
       },
       {
-        path: 'roles/:id/permissions',
-        name: 'role-permissions',
-        component: () => import('@/views/system/RolePermissionsView.vue'),
-        meta: { menuCode: MENU.ROLE_MANAGEMENT },
-        props: true,
+        path: 'grafik/penerimaan',
+        name: 'grafik-penerimaan',
+        component: () => import('@/views/grafik/GrafikPenerimaanView.vue'),
+        meta: { menuCode: MENU.PMB_GRAFIK_PENERIMAAN_MANAGEMENT, title: 'Grafik Penerimaan' },
+      },
+      {
+        path: 'grafik/daftar-ulang',
+        name: 'grafik-daftar-ulang',
+        component: () => import('@/views/grafik/GrafikDaftarUlangView.vue'),
+        meta: { menuCode: MENU.PMB_GRAFIK_DAFTAR_ULANG_MANAGEMENT, title: 'Grafik Daftar Ulang' },
       },
       {
         path: 'menus',
@@ -367,10 +703,17 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.MAHASISWA_MANAGEMENT },
       },
       {
-        path: 'tahun-ajaran',
-        name: 'baak-tahun-ajaran',
-        component: () => import('@/views/baak/TahunAjaranView.vue'),
-        meta: { menuCode: MENU.TAHUN_AJARAN_MANAGEMENT },
+        path: 'generate-nim',
+        name: 'baak-generate-nim',
+        component: () => import('@/views/baak/GenerateNimView.vue'),
+        meta: { menuCode: MENU.BAAK_GENERATE_NIM_MANAGEMENT, title: 'Generate NIM' },
+      },
+      {
+        // Halaman yang sama dengan Prodi > Masa Studi, dengan hak akses menu BAAK sendiri.
+        path: 'masa-studi',
+        name: 'baak-masa-studi',
+        component: () => import('@/views/prodi/mahasiswa/HabisMasaStudiView.vue'),
+        meta: { menuCode: MENU.BAAK_MASA_STUDI_MANAGEMENT, title: 'Masa Studi' },
       },
       {
         path: 'jadwal-kuliah',
@@ -471,6 +814,18 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.LAPORAN_CETAK_KHS_MANAGEMENT },
       },
       {
+        path: 'pengumuman',
+        name: 'baak-pengumuman',
+        component: () => import('@/views/baak/PengumumanView.vue'),
+        meta: { menuCode: MENU.BAAK_PENGUMUMAN_MANAGEMENT },
+      },
+      {
+        path: 'kalender-akademik',
+        name: 'baak-kalender-akademik',
+        component: () => import('@/views/baak/KalenderAkademikView.vue'),
+        meta: { menuCode: MENU.BAAK_KALENDER_AKADEMIK_MANAGEMENT },
+      },
+      {
         path: 'readme',
         name: 'baak-readme',
         component: () => import('@/views/baak/ReadMeView.vue'),
@@ -547,11 +902,24 @@ const routes: RouteRecordRaw[] = [
   },
 
   // ---- Prodi console ----
+  // Versi cetak laporan (tanpa sidebar), dibuka di tab baru dari Laporan Capaian OBE.
+  {
+    path: '/prodi/cetak/laporan-capaian',
+    name: 'prodi-laporan-capaian-cetak',
+    component: () => import('@/views/prodi/kurikulum/LaporanCapaianCetakView.vue'),
+    meta: { menuCode: MENU.PRODI_LAPORAN_CAPAIAN_MANAGEMENT },
+  },
   {
     path: '/prodi',
     component: () => import('@/components/layout/ProdiLayout.vue'),
     children: [
       { path: '', redirect: '/prodi/beranda' },
+      {
+        path: 'kurikulum/laporan-capaian',
+        name: 'prodi-laporan-capaian',
+        component: () => import('@/views/prodi/kurikulum/LaporanCapaianView.vue'),
+        meta: { menuCode: MENU.PRODI_LAPORAN_CAPAIAN_MANAGEMENT },
+      },
       {
         path: 'beranda',
         name: 'prodi-dashboard',
@@ -569,6 +937,24 @@ const routes: RouteRecordRaw[] = [
         name: 'prodi-yudisium',
         component: () => import('@/views/prodi/YudisiumView.vue'),
         meta: { menuCode: MENU.PRODI_YUDISIUM_MANAGEMENT },
+      },
+      {
+        path: 'dosen',
+        name: 'prodi-dosen',
+        component: () => import('@/views/prodi/DosenView.vue'),
+        meta: { menuCode: MENU.PRODI_DOSEN_MANAGEMENT },
+      },
+      {
+        path: 'sidang/periode-pengajuan-ta',
+        name: 'prodi-periode-pengajuan-ta',
+        component: () => import('@/views/prodi/PeriodePengajuanTaView.vue'),
+        meta: { menuCode: MENU.PRODI_PERIODE_PENGAJUAN_TA_MANAGEMENT },
+      },
+      {
+        path: 'sidang/pengajuan-ta',
+        name: 'prodi-pengajuan-ta',
+        component: () => import('@/views/prodi/PengajuanTaView.vue'),
+        meta: { menuCode: MENU.PRODI_PENGAJUAN_TA_MANAGEMENT },
       },
       {
         path: 'sidang/jadwal-sidang',
@@ -687,6 +1073,27 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.PRODI_VOC_UJIAN_FTID_MANAGEMENT },
       },
       {
+        // Hasil angket pelayanan mahasiswa.
+        path: 'angket-pelayanan',
+        name: 'prodi-angket-pelayanan',
+        component: () => import('@/views/prodi/AngketPelayananView.vue'),
+        meta: { menuCode: MENU.PRODI_ANGKET_PELAYANAN_MANAGEMENT },
+      },
+      {
+        // Kelola pertanyaan angket pelayanan (CRUD).
+        path: 'pertanyaan-angket',
+        name: 'prodi-pertanyaan-angket',
+        component: () => import('@/views/prodi/PertanyaanAngketView.vue'),
+        meta: { menuCode: MENU.PRODI_PERTANYAAN_ANGKET_MANAGEMENT },
+      },
+      {
+        // Master pertanyaan angket dosen (penilaian dosen oleh mahasiswa).
+        path: 'angket-dosen-pertanyaan',
+        name: 'prodi-angket-dosen-pertanyaan',
+        component: () => import('@/views/prodi/AngketDosenPertanyaanView.vue'),
+        meta: { menuCode: MENU.PRODI_ANGKET_DOSEN_PERTANYAAN_MANAGEMENT },
+      },
+      {
         path: 'jadwal-kuliah/realisasi-dosen',
         name: 'prodi-realisasi-dosen',
         component: () => import('@/views/prodi/jadwal/RealisasiDosenView.vue'),
@@ -695,8 +1102,16 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'jadwal-kuliah/monitoring-jadwal',
         name: 'prodi-monitoring-jadwal',
-        component: () => import('@/views/prodi/jadwal/MonitoringJadwalView.vue'),
+        component: () => import('@/views/baak/MonitoringView.vue'),
         meta: { menuCode: MENU.PRODI_MONITORING_JADWAL_MANAGEMENT },
+        props: { modul: 'prodi' },
+      },
+      {
+        path: 'jadwal-kuliah/monitoring-jadwal/:id',
+        name: 'prodi-monitoring-jadwal-detail',
+        component: () => import('@/views/baak/MonitoringDetailView.vue'),
+        meta: { menuCode: MENU.PRODI_MONITORING_JADWAL_MANAGEMENT },
+        props: (route) => ({ id: String(route.params.id), modul: 'prodi' }),
       },
       {
         path: 'jadwal-kuliah/jadwal-kuliah',
@@ -717,16 +1132,104 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.PRODI_KURIKULUM_MANAGEMENT },
       },
       {
+        path: 'kurikulum/kurikulum/:id',
+        name: 'prodi-kurikulum-detail',
+        component: () => import('@/views/prodi/kurikulum/KurikulumDetailView.vue'),
+        meta: { menuCode: MENU.PRODI_KURIKULUM_MANAGEMENT },
+        props: true,
+      },
+      {
         path: 'kurikulum/matakuliah-aktif',
         name: 'prodi-matakuliah-aktif',
         component: () => import('@/views/prodi/kurikulum/MatakuliahAktifView.vue'),
         meta: { menuCode: MENU.PRODI_MATAKULIAH_AKTIF_MANAGEMENT },
       },
       {
+        path: 'laporan/obe',
+        name: 'prodi-laporan-obe',
+        component: () => import('@/views/prodi/laporan/LaporanObeView.vue'),
+        meta: { menuCode: MENU.PRODI_LAPORAN_OBE_MANAGEMENT },
+      },
+      {
+        path: 'perkuliahan/e-learning',
+        name: 'prodi-e-learning',
+        component: () => import('@/views/prodi/perkuliahan/PerkuliahanComingSoonView.vue'),
+        meta: { menuCode: MENU.PRODI_E_LEARNING_MANAGEMENT, title: 'E-learning', subtitle: 'Pembelajaran Akademik', icon: 'import_contacts' },
+      },
+      {
+        path: 'perkuliahan/mata-kuliah',
+        name: 'prodi-perkuliahan-mata-kuliah',
+        component: () => import('@/views/prodi/perkuliahan/MataKuliahPerkuliahanView.vue'),
+        meta: { menuCode: MENU.PRODI_PERKULIAHAN_MATA_KULIAH_MANAGEMENT },
+      },
+      {
+        path: 'perkuliahan/mata-kuliah/:id/rps',
+        name: 'prodi-perkuliahan-mata-kuliah-rps',
+        component: () => import('@/views/prodi/kurikulum/RpsMataKuliahView.vue'),
+        meta: {
+          menuCode: MENU.PRODI_PERKULIAHAN_MATA_KULIAH_MANAGEMENT,
+          backRoute: 'prodi-perkuliahan-mata-kuliah',
+          breadcrumb: 'Prodi / Perkuliahan / Mata Kuliah',
+        },
+        props: true,
+      },
+      {
+        path: 'perkuliahan/kelas-kuliah',
+        name: 'prodi-kelas-kuliah',
+        component: () => import('@/views/prodi/perkuliahan/KelasKuliahView.vue'),
+        meta: { menuCode: MENU.PRODI_KELAS_KULIAH_MANAGEMENT },
+      },
+      {
+        path: 'perkuliahan/kelas-kuliah/:id',
+        name: 'prodi-kelas-kuliah-detail',
+        component: () => import('@/views/prodi/perkuliahan/KelasKuliahDetailView.vue'),
+        meta: { menuCode: MENU.PRODI_KELAS_KULIAH_MANAGEMENT },
+        props: true,
+      },
+      {
+        path: 'perkuliahan/aktivitas-prestasi',
+        name: 'prodi-aktivitas-prestasi',
+        component: () => import('@/views/prodi/perkuliahan/PerkuliahanComingSoonView.vue'),
+        meta: { menuCode: MENU.PRODI_AKTIVITAS_PRESTASI_MANAGEMENT, title: 'Aktivitas & Prestasi', subtitle: 'Kegiatan Mahasiswa Wali', icon: 'emoji_events' },
+      },
+      {
+        path: 'setting',
+        name: 'prodi-setting',
+        component: () => import('@/views/prodi/SettingProdiView.vue'),
+        meta: { menuCode: MENU.PRODI_SETTING_MANAGEMENT },
+      },
+      {
+        path: 'setting/:id',
+        name: 'prodi-setting-detail',
+        component: () => import('@/views/prodi/SettingProdiDetailView.vue'),
+        meta: { menuCode: MENU.PRODI_SETTING_MANAGEMENT },
+        props: true,
+      },
+      {
+        path: 'kurikulum/matakuliah-aktif/:id/rps',
+        name: 'prodi-matakuliah-aktif-rps',
+        component: () => import('@/views/prodi/kurikulum/RpsMataKuliahView.vue'),
+        meta: { menuCode: MENU.PRODI_MATAKULIAH_AKTIF_MANAGEMENT },
+        props: true,
+      },
+      {
         path: 'kurikulum/konversi-kurikulum',
         name: 'prodi-konversi-kurikulum',
         component: () => import('@/views/prodi/kurikulum/KonversiKurikulumView.vue'),
         meta: { menuCode: MENU.PRODI_KONVERSI_KURIKULUM_MANAGEMENT },
+      },
+      {
+        path: 'kurikulum/manajemen-capaian',
+        name: 'prodi-manajemen-capaian',
+        component: () => import('@/views/prodi/kurikulum/ManajemenCapaianView.vue'),
+        meta: { menuCode: MENU.PRODI_MANAJEMEN_CAPAIAN_MANAGEMENT },
+      },
+      {
+        path: 'kurikulum/manajemen-capaian/:id',
+        name: 'prodi-manajemen-capaian-detail',
+        component: () => import('@/views/prodi/kurikulum/ManajemenCapaianDetailView.vue'),
+        meta: { menuCode: MENU.PRODI_MANAJEMEN_CAPAIAN_MANAGEMENT },
+        props: true,
       },
       {
         path: 'mahasiswa/generate-aktif',
@@ -757,6 +1260,12 @@ const routes: RouteRecordRaw[] = [
         name: 'prodi-evaluasi-studi',
         component: () => import('@/views/prodi/mahasiswa/EvaluasiStudiView.vue'),
         meta: { menuCode: MENU.PRODI_EVALUASI_STUDI_MANAGEMENT },
+      },
+      {
+        path: 'mahasiswa/krs',
+        name: 'prodi-krs-mahasiswa',
+        component: () => import('@/views/prodi/mahasiswa/KrsMahasiswaView.vue'),
+        meta: { menuCode: MENU.PRODI_KRS_MANAGEMENT },
       },
       {
         path: 'mahasiswa/monitoring-frs',
@@ -807,6 +1316,12 @@ const routes: RouteRecordRaw[] = [
         name: 'keuangan-tarif-ta-skripsi',
         component: () => import('@/views/keuangan/master/TarifTaSkripsiView.vue'),
         meta: { menuCode: MENU.KEUANGAN_TARIF_TA_SKRIPSI_MANAGEMENT },
+      },
+      {
+        path: 'master/batas-tagihan-akademik',
+        name: 'keuangan-batas-tagihan-akademik',
+        component: () => import('@/views/keuangan/master/BatasTagihanAkademikView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_BATAS_TAGIHAN_AKADEMIK_MANAGEMENT },
       },
       {
         path: 'master/tarif-pembimbing',
@@ -879,12 +1394,6 @@ const routes: RouteRecordRaw[] = [
         name: 'keuangan-perpanjangan-ta-skripsi',
         component: () => import('@/views/keuangan/transaksi/PerpanjanganTaSkripsiView.vue'),
         meta: { menuCode: MENU.KEUANGAN_PERPANJANGAN_TA_SKRIPSI_MANAGEMENT },
-      },
-      {
-        path: 'transaksi/tunggakan-mahasiswa',
-        name: 'keuangan-tunggakan-mahasiswa',
-        component: () => import('@/views/keuangan/transaksi/TunggakanMahasiswaView.vue'),
-        meta: { menuCode: MENU.KEUANGAN_TUNGGAKAN_MAHASISWA_MANAGEMENT },
       },
       {
         path: 'transaksi/pembayaran-wisuda',
@@ -960,6 +1469,12 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.KEUANGAN_NERACA_MANAGEMENT },
       },
       {
+        path: 'readme',
+        name: 'keuangan-readme',
+        component: () => import('@/views/keuangan/ReadMeView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_README_MANAGEMENT },
+      },
+      {
         path: 'audit-log',
         name: 'keuangan-audit-log',
         component: () => import('@/views/system/AuditLogView.vue'),
@@ -973,6 +1488,216 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
+  // ---- Modul Admin (superadmin) ----
+  {
+    path: '/modul-admin',
+    component: () => import('@/components/layout/ModulAdminLayout.vue'),
+    children: [
+      { path: '', redirect: '/modul-admin/impersonasi' },
+      {
+        path: 'readme',
+        name: 'admin-readme',
+        component: () => import('@/views/admin/ReadMeView.vue'),
+        meta: { menuCode: MENU.ADMIN_README_MANAGEMENT },
+      },
+      {
+        path: 'impersonasi',
+        name: 'impersonasi',
+        component: () => import('@/views/system/ImpersonasiView.vue'),
+        meta: { menuCode: MENU.IMPERSONASI_MANAGEMENT },
+      },
+      {
+        path: 'users',
+        name: 'users',
+        component: () => import('@/views/system/UsersView.vue'),
+        meta: { menuCode: MENU.USER_MANAGEMENT },
+      },
+      {
+        path: 'roles',
+        name: 'roles',
+        component: () => import('@/views/system/RolesView.vue'),
+        meta: { menuCode: MENU.ROLE_MANAGEMENT },
+      },
+      {
+        path: 'roles/:id/permissions',
+        name: 'role-permissions',
+        component: () => import('@/views/system/RolePermissionsView.vue'),
+        meta: { menuCode: MENU.ROLE_MANAGEMENT },
+        props: true,
+      },
+      {
+        path: 'tahun-ajaran',
+        name: 'tahun-ajaran',
+        component: () => import('@/views/baak/TahunAjaranView.vue'),
+        meta: { menuCode: MENU.TAHUN_AJARAN_MANAGEMENT },
+      },
+      {
+        path: 'master/ruangan',
+        name: 'admin-master-ruangan',
+        component: () => import('@/views/admin/master/RuanganView.vue'),
+        meta: { menuCode: MENU.RUANGAN_MANAGEMENT },
+      },
+      // Sub menu Master lain: sementara "Segera Hadir" sampai CRUD-nya dibuat.
+      {
+        path: 'master/agama',
+        name: 'admin-master-agama',
+        component: () => import('@/views/admin/master/AgamaView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_AGAMA_MANAGEMENT, title: 'Agama' },
+      },
+      {
+        path: 'master/tahun',
+        name: 'admin-master-tahun',
+        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_AKADEMIK_MANAGEMENT, title: 'Tahun (Prodi, BAAK, MHS, Dosen, Pos & SDM)' },
+      },
+      {
+        path: 'master/tahun-keuangan',
+        name: 'admin-master-tahun-keuangan',
+        component: () => import('@/views/admin/master/TahunModulView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_KEUANGAN_MANAGEMENT, title: 'Tahun (Kasir & Keuangan)', modul: 'keuangan' },
+      },
+      {
+        path: 'master/tahun-pmb',
+        name: 'admin-master-tahun-pmb',
+        component: () => import('@/views/admin/master/TahunModulView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_PMB_MANAGEMENT, title: 'Tahun (PMB)', modul: 'pmb' },
+      },
+      {
+        path: 'master/tahun-frs',
+        name: 'admin-master-tahun-frs',
+        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_FRS_MANAGEMENT, title: 'Tahun (FRS)' },
+      },
+      {
+        path: 'master/tahun-ta-skripsi',
+        name: 'admin-master-tahun-ta-skripsi',
+        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_TA_SKRIPSI_MANAGEMENT, title: 'Tahun TA/Skripsi' },
+      },
+      {
+        path: 'master/tahun-sp',
+        name: 'admin-master-tahun-sp',
+        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_SP_MANAGEMENT, title: 'Tahun SP' },
+      },
+      {
+        path: 'master/prodi',
+        name: 'admin-master-prodi',
+        component: () => import('@/views/master/JurusanView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_PRODI_MANAGEMENT, title: 'Prodi' },
+        props: { menuCode: MENU.ADMIN_MASTER_PRODI_MANAGEMENT },
+      },
+      {
+        path: 'master/karyawan',
+        name: 'admin-master-karyawan',
+        component: () => import('@/views/sdi/KaryawanView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_KARYAWAN_MANAGEMENT, title: 'Karyawan' },
+        props: { menuCode: MENU.ADMIN_MASTER_KARYAWAN_MANAGEMENT },
+      },
+      {
+        path: 'master/dosen',
+        name: 'admin-master-dosen',
+        component: () => import('@/views/sdi/DosenView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_DOSEN_MANAGEMENT, title: 'Dosen' },
+        props: { menuCode: MENU.ADMIN_MASTER_DOSEN_MANAGEMENT },
+      },
+      {
+        path: 'master/mahasiswa',
+        name: 'admin-master-mahasiswa',
+        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        meta: { menuCode: MENU.ADMIN_MASTER_MAHASISWA_MANAGEMENT, title: 'Mahasiswa' },
+      },
+    ],
+  },
+  // Alamat lama menu Impersonasi (sempat di console PMB).
+  { path: '/admin/impersonasi', redirect: '/modul-admin/impersonasi' },
+  // Alamat lama User/Role Management (console PMB) & Tahun Ajaran (console BAAK).
+  { path: '/admin/users', redirect: '/modul-admin/users' },
+  { path: '/admin/roles', redirect: '/modul-admin/roles' },
+  { path: '/admin/roles/:id/permissions', redirect: (to) => `/modul-admin/roles/${to.params.id}/permissions` },
+  { path: '/baak/tahun-ajaran', redirect: '/modul-admin/tahun-ajaran' },
+  // ---- LMS console (Learning Management System) ----
+  {
+    // Halaman login LMS tersendiri (gaya portal e-learning): Siakad (dosen / mahasiswa), email, atau username staf.
+    path: '/lms/login',
+    name: 'lms-login',
+    component: () => import('@/views/lms/LoginView.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/lms',
+    component: () => import('@/components/layout/LmsLayout.vue'),
+    children: [
+      { path: '', redirect: '/lms/dashboard' },
+      {
+        path: 'dashboard',
+        name: 'lms-dashboard',
+        component: () => import('@/views/lms/DashboardView.vue'),
+        meta: { menuCode: MENU.LMS_DASHBOARD },
+      },
+      {
+        path: 'kelas',
+        name: 'lms-kelas',
+        component: () => import('@/views/lms/KelasView.vue'),
+        meta: { menuCode: MENU.LMS_KELAS_MANAGEMENT },
+      },
+      {
+        path: 'kelas/:id',
+        name: 'lms-kelas-detail',
+        component: () => import('@/views/lms/KelasDetailView.vue'),
+        meta: { menuCode: MENU.LMS_KELAS_MANAGEMENT },
+      },
+      {
+        // Materi / Tugas / Kuis memakai halaman yang sama (meta.sumber = endpoint konsol LMS).
+        path: 'materi',
+        name: 'lms-materi',
+        component: () => import('@/views/lms/KontenView.vue'),
+        meta: { menuCode: MENU.LMS_MATERI_MANAGEMENT, sumber: 'materi' },
+      },
+      {
+        path: 'tugas',
+        name: 'lms-tugas',
+        component: () => import('@/views/lms/KontenView.vue'),
+        meta: { menuCode: MENU.LMS_TUGAS_MANAGEMENT, sumber: 'tugas' },
+      },
+      {
+        path: 'kuis',
+        name: 'lms-kuis',
+        component: () => import('@/views/lms/KontenView.vue'),
+        meta: { menuCode: MENU.LMS_KUIS_MANAGEMENT, sumber: 'kuis' },
+      },
+      {
+        path: 'forum',
+        name: 'lms-forum',
+        component: () => import('@/views/lms/ForumView.vue'),
+        meta: { menuCode: MENU.LMS_FORUM_MANAGEMENT },
+      },
+      {
+        // Data pengumuman yang sama dengan BAAK → Pengumuman (tampil sebagai Berita Kampus di e-learning).
+        path: 'pengumuman',
+        name: 'lms-pengumuman',
+        component: () => import('@/views/baak/PengumumanView.vue'),
+        meta: { menuCode: MENU.LMS_PENGUMUMAN_MANAGEMENT },
+      },
+      {
+        path: 'readme',
+        name: 'lms-readme',
+        component: () => import('@/views/lms/ReadMeView.vue'),
+        meta: { menuCode: MENU.LMS_README_MANAGEMENT },
+      },
+      {
+        path: 'laporan',
+        name: 'lms-laporan',
+        component: () => import('@/views/lms/LaporanView.vue'),
+        meta: { menuCode: MENU.LMS_LAPORAN_MANAGEMENT },
+      },
+      {
+        path: '403',
+        name: 'lms-forbidden',
+        component: () => import('@/views/ForbiddenView.vue'),
+      },
+    ],
+  },
   // ---- SIM console ----
   {
     path: '/sim',
@@ -1057,6 +1782,19 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/sim/FeederView.vue'),
         meta: { menuCode: MENU.SIM_FEEDER_MANAGEMENT },
       },
+      // Semua menu Feeder PDDIKTI memakai satu halaman generik.
+      ...FEEDER_ENTITIES.map((e) => ({
+        path: `feeder/${e.key}`,
+        name: `sim-feeder-${e.key}`,
+        component: () => import('@/views/sim/feeder/FeederEntityView.vue'),
+        meta: { menuCode: e.menuCode, feederEntity: e.key },
+      })),
+      {
+        path: 'tiket-mahasiswa',
+        name: 'sim-tiket-mahasiswa',
+        component: () => import('@/views/sim/TiketMahasiswaView.vue'),
+        meta: { menuCode: MENU.SIM_TIKET_MAHASISWA_MANAGEMENT },
+      },
       {
         path: 'panduan-smart',
         name: 'sim-panduan-smart',
@@ -1120,6 +1858,10 @@ router.beforeEach(async (to) => {
     if (!pesertaAuthStore.isAuthenticated) {
       return { name: 'pendaftaran-masuk', query: { redirect: to.fullPath } };
     }
+    // Password awal (nomor HP) harus diganti sebelum halaman pendaftaran lain bisa dibuka.
+    if (pesertaAuthStore.peserta?.wajibGantiPassword && to.name !== 'pendaftaran-ganti-password') {
+      return { name: 'pendaftaran-ganti-password', query: { redirect: to.fullPath } };
+    }
     return true;
   }
 
@@ -1127,27 +1869,14 @@ router.beforeEach(async (to) => {
   const menuStore = useMenuStore();
 
   if (to.meta.public) {
-    if (authStore.isAuthenticated && to.name === 'login') {
-      // Redirect ke console yang benar-benar bisa diakses user, bukan selalu ke PMB —
-      // sebelumnya hardcoded ke 'dashboard' (PMB) sehingga user yang hanya punya akses
-      // Prodi/BAAK/SDI ikut terlempar ke PMB begitu token session mereka masih valid.
-      const HOME_BY_MODULE: Record<string, { path: string; dashboardMenuCode: string }> = {
-        pmb: { path: '/admin/dashboard', dashboardMenuCode: MENU.DASHBOARD },
-        baak: { path: '/baak/dashboard', dashboardMenuCode: MENU.BAAK_DASHBOARD },
-        sdi: { path: '/sdi/dashboard', dashboardMenuCode: MENU.SDI_DASHBOARD },
-        prodi: { path: '/prodi/beranda', dashboardMenuCode: MENU.PRODI_DASHBOARD },
-        keuangan: { path: '/keuangan/dashboard', dashboardMenuCode: MENU.KEUANGAN_DASHBOARD },
-        sim: { path: '/sim/dashboard', dashboardMenuCode: MENU.SIM_DASHBOARD },
-      };
-      const accessibleModule = Object.values(HOME_BY_MODULE).find(
-        (m) => authStore.permissionsFor(m.dashboardMenuCode).canRead
-      );
-      return { path: accessibleModule?.path ?? '/admin/dashboard' };
-    }
+    // Halaman login tetap bisa dibuka walau masih ada sesi aktif, supaya bisa ganti akun (mis. Prodi
+    // -> Keuangan). Sebelumnya user langsung dilempar ke modul pertama yang bisa diakses sesi lama,
+    // jadi login sebagai Keuangan tidak pernah tercapai. LoginView menampilkan info sesi aktif.
     return true;
   }
 
   if (!authStore.isAuthenticated) {
+    if (to.path.startsWith('/lms')) return { name: 'lms-login' };
     return { name: 'login', query: { redirect: to.fullPath } };
   }
 
@@ -1162,6 +1891,7 @@ router.beforeEach(async (to) => {
     if (to.path.startsWith('/prodi')) return { name: 'prodi-forbidden' };
     if (to.path.startsWith('/keuangan')) return { name: 'keuangan-forbidden' };
     if (to.path.startsWith('/sim')) return { name: 'sim-forbidden' };
+    if (to.path.startsWith('/lms')) return { name: 'lms-forbidden' };
     return { name: 'forbidden' };
   }
 

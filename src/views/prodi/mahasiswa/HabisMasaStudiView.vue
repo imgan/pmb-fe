@@ -3,6 +3,7 @@ import { computed, reactive, ref } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -24,7 +25,7 @@ const STATUS_MASUK_LABELS: Record<StatusMasukMahasiswa, string> = {
   TRANSFER_DALAM_KARYAWAN: 'Transfer Dalam Karyawan',
 };
 
-const { items, meta, page, search, loading, error, sortBy, sortDir, handleSort, fetchItems } = useCrudPage<Mahasiswa>({
+const { items, meta, page, limit, search, loading, error, sortBy, sortDir, handleSort, fetchItems } = useCrudPage<Mahasiswa>({
   fetchList: mahasiswaApi.list,
   remove: async () => {},
   extraQuery: () => ({ isActive: true }),
@@ -50,6 +51,7 @@ const STATUS_KELUAR_VALUES: StatusKeluarMahasiswa[] = [
   'PUTUS_SEKOLAH',
   'WAFAT',
   'HILANG',
+  'MENUNGGU_UKOM',
   'LAINNYA',
 ];
 const STATUS_KELUAR_LABELS: Record<StatusKeluarMahasiswa, string> = {
@@ -62,6 +64,7 @@ const STATUS_KELUAR_LABELS: Record<StatusKeluarMahasiswa, string> = {
   WAFAT: 'Wafat',
   HILANG: 'Hilang',
   LAINNYA: 'Lainnya',
+  MENUNGGU_UKOM: 'Menunggu Ukom',
 };
 const statusKeluarOptions = STATUS_KELUAR_VALUES.map((v) => ({ value: v, label: STATUS_KELUAR_LABELS[v] }));
 
@@ -141,6 +144,10 @@ const handleSimpan = async () => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"

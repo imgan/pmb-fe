@@ -8,12 +8,14 @@ import SearchInput from '@/components/ui/SearchInput.vue';
 import Modal from '@/components/ui/Modal.vue';
 import { laporanKeuanganApi } from '@/api/laporanKeuangan';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { jurusanApi } from '@/api/jurusan';
 import { tagihanKuliahApi } from '@/api/tagihanKuliah';
 import { tunggakanMahasiswaApi } from '@/api/tunggakanMahasiswa';
 import { extractErrorMessage } from '@/api/http';
 import { formatCurrencyIdr, formatDate } from '@/utils/format';
 import { downloadBlob } from '@/utils/download';
 import { toastError } from '@/utils/swal';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 import type {
   LaporanTunggakanRow,
   RingkasanBiayaLainRow,
@@ -29,6 +31,13 @@ interface Option {
 
 const tahunAjaranOptions = ref<Option[]>([]);
 const selectedTahunAjaran = ref<number | ''>('');
+// Prodi berdasarkan kode prodi (jurusan Reguler & Karyawan satu prodi digabung).
+const prodiOptions = ref<Option[]>([]);
+const selectedProdi = ref<string>('');
+const filterQuery = () => ({
+  tahunAjaranId: selectedTahunAjaran.value || undefined,
+  kodeProdi: selectedProdi.value || undefined,
+});
 
 const rows = ref<LaporanTunggakanRow[]>([]);
 const loading = ref(false);
@@ -41,12 +50,22 @@ onMounted(async () => {
     const { data } = await tahunAjaranApi.list({ limit: 200 });
     tahunAjaranOptions.value = data
       .slice()
-      .sort((a, b) => b.tahunMulai - a.tahunMulai)
-      .map((ta) => ({ value: ta.id, label: `${ta.nama} - ${ta.jenisSemester}` }));
+      .sort((a, b) => b.tahunMulai - a.tahunMulai || b.jenisSemester.localeCompare(a.jenisSemester))
+      .map((ta) => ({ value: ta.id, label: `${formatTahunAjaran(ta)}` }));
     const active = data.find((ta) => ta.isActive);
     if (active) selectedTahunAjaran.value = active.id;
   } catch {
     tahunAjaranOptions.value = [];
+  }
+  try {
+    const { data } = await jurusanApi.listProdi({ limit: 100 });
+    const byKode = new Map<string, string>();
+    data.forEach((j) => {
+      if (j.kodeProdi && !byKode.has(j.kodeProdi)) byKode.set(j.kodeProdi, j.namaJurusan);
+    });
+    prodiOptions.value = [...byKode].map(([kode, nama]) => ({ value: kode, label: nama })).sort((a, b) => a.label.localeCompare(b.label));
+  } catch {
+    prodiOptions.value = [];
   }
   handleTampilkan();
 });
@@ -55,7 +74,7 @@ const handleTampilkan = async () => {
   loading.value = true;
   error.value = null;
   try {
-    rows.value = await laporanKeuanganApi.tunggakanMahasiswa({ tahunAjaranId: selectedTahunAjaran.value || undefined });
+    rows.value = await laporanKeuanganApi.tunggakanMahasiswa(filterQuery());
     loaded.value = true;
   } catch (err) {
     error.value = extractErrorMessage(err, 'Gagal memuat data tunggakan mahasiswa');
@@ -71,7 +90,7 @@ const exportingJurusan = ref(false);
 const handleExportPerMahasiswa = async () => {
   exportingMahasiswa.value = true;
   try {
-    const blob = await laporanKeuanganApi.exportTunggakanPerMahasiswa({ tahunAjaranId: selectedTahunAjaran.value || undefined });
+    const blob = await laporanKeuanganApi.exportTunggakanPerMahasiswa(filterQuery());
     downloadBlob(blob, 'tunggakan-per-mahasiswa.xlsx');
   } catch (err) {
     toastError(extractErrorMessage(err, 'Gagal mengekspor tunggakan per mahasiswa'));
@@ -83,7 +102,7 @@ const handleExportPerMahasiswa = async () => {
 const handleExportPerJurusan = async () => {
   exportingJurusan.value = true;
   try {
-    const blob = await laporanKeuanganApi.exportTunggakanPerJurusan({ tahunAjaranId: selectedTahunAjaran.value || undefined });
+    const blob = await laporanKeuanganApi.exportTunggakanPerJurusan(filterQuery());
     downloadBlob(blob, 'tunggakan-per-jurusan.xlsx');
   } catch (err) {
     toastError(extractErrorMessage(err, 'Gagal mengekspor tunggakan per jurusan'));
@@ -156,35 +175,6 @@ const closeDetail = () => {
   isDetailOpen.value = false;
 };
 
-interface JenisTagihanRow {
-  label: string;
-  nominal: number;
-  dibayar: number;
-  sisa: number;
-}
-
-// Backend hanya menyimpan totalDibayar per tagihan (bukan per jenis), jadi
-// dibayar dialokasikan berurutan SPP -> BPP -> SKS. Potongan dipotong dari
-// arah sebaliknya (SKS -> BPP -> SPP) agar total nominal tetap = totalTagihan.
-const jenisTagihanRows = (t: TagihanKuliah): JenisTagihanRow[] => {
-  const items = [
-    { label: 'SPP', nominal: t.biayaSpp },
-    { label: 'BPP', nominal: t.biayaBpp },
-    { label: 'SKS', nominal: t.biayaSks },
-  ];
-  let potonganSisa = t.potongan || 0;
-  for (let i = items.length - 1; i >= 0 && potonganSisa > 0; i--) {
-    const cut = Math.min(items[i].nominal, potonganSisa);
-    items[i].nominal -= cut;
-    potonganSisa -= cut;
-  }
-  let bayarSisa = t.totalDibayar;
-  return items.map((item) => {
-    const dibayar = Math.min(item.nominal, Math.max(bayarSisa, 0));
-    bayarSisa -= dibayar;
-    return { ...item, dibayar, sisa: item.nominal - dibayar };
-  });
-};
 </script>
 
 <template>
@@ -195,6 +185,9 @@ const jenisTagihanRows = (t: TagihanKuliah): JenisTagihanRow[] => {
       <div class="flex flex-col md:flex-row gap-3 md:items-end">
         <div class="w-full md:w-72">
           <SelectInput v-model="selectedTahunAjaran" label="Tahun Ajaran" placeholder="-- Semua Tahun Ajaran --" :options="tahunAjaranOptions" />
+        </div>
+        <div class="w-full md:w-72">
+          <SelectInput v-model="selectedProdi" label="Prodi" placeholder="-- Semua Prodi --" :options="prodiOptions" />
         </div>
         <AppButton icon="search" :disabled="loading" @click="handleTampilkan">{{ loading ? 'Memuat...' : 'Tampilkan' }}</AppButton>
         <div class="flex-1"></div>
@@ -255,7 +248,7 @@ const jenisTagihanRows = (t: TagihanKuliah): JenisTagihanRow[] => {
               <div v-for="tagihan in detailTagihan" :key="tagihan.id" class="border border-outline-variant rounded-md overflow-hidden">
                 <div class="px-3 py-2 bg-surface-container-low flex flex-wrap items-center justify-between gap-2 text-body-sm">
                   <span class="font-medium text-on-surface">
-                    {{ tagihan.tahunAjaran?.nama ?? '-' }} &middot; Semester {{ tagihan.semester }}
+                    {{ formatTahunAjaran(tagihan.tahunAjaran) }} &middot; Semester {{ tagihan.semester }}
                   </span>
                   <span class="text-on-surface-variant">
                     Tagihan: {{ formatCurrencyIdr(tagihan.totalTagihan) }} &middot; Dibayar:
@@ -264,32 +257,6 @@ const jenisTagihanRows = (t: TagihanKuliah): JenisTagihanRow[] => {
                       {{ formatCurrencyIdr(tagihan.sisaTagihan) }}
                     </span>
                   </span>
-                </div>
-                <div class="px-3 py-2 border-t border-outline-variant">
-                  <p class="text-label-sm font-medium text-on-surface-variant mb-1">Rincian per Jenis Tagihan</p>
-                  <table class="w-full text-body-sm">
-                    <thead>
-                      <tr class="text-label-sm text-on-surface-variant">
-                        <th class="text-left font-medium pb-1">Jenis</th>
-                        <th class="text-right font-medium pb-1">Nominal</th>
-                        <th class="text-right font-medium pb-1">Dibayar</th>
-                        <th class="text-right font-medium pb-1">Sisa</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr v-for="jenis in jenisTagihanRows(tagihan)" :key="jenis.label">
-                        <td class="py-0.5">{{ jenis.label }}</td>
-                        <td class="py-0.5 text-right">{{ formatCurrencyIdr(jenis.nominal) }}</td>
-                        <td class="py-0.5 text-right">{{ formatCurrencyIdr(jenis.dibayar) }}</td>
-                        <td class="py-0.5 text-right" :class="jenis.sisa > 0 ? 'text-error font-medium' : ''">
-                          {{ formatCurrencyIdr(jenis.sisa) }}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p v-if="tagihan.potongan > 0" class="text-label-sm text-on-surface-variant mt-1">
-                    * Sudah termasuk potongan {{ formatCurrencyIdr(tagihan.potongan) }}
-                  </p>
                 </div>
                 <div v-if="tagihan.pembayaranList?.length" class="px-3 py-2 border-t border-outline-variant">
                   <p class="text-label-sm font-medium text-on-surface-variant mb-1">Riwayat Pembayaran</p>

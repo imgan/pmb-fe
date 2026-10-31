@@ -1,60 +1,71 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
-import SelectInput from '@/components/ui/SelectInput.vue';
+import SelectInput, { type SelectOption } from '@/components/ui/SelectInput.vue';
 import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import RowActions from '@/components/ui/RowActions.vue';
 import AppButton from '@/components/ui/AppButton.vue';
-import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
-import { jadwalKuliahApi, type JadwalKuliahPayload } from '@/api/jadwalKuliah';
+import ExportJadwalV2Button from '@/components/ui/ExportJadwalV2Button.vue';
+import { jadwalKuliahApi, type JadwalKuliahPayload, type MatakuliahAktifOption } from '@/api/jadwalKuliah';
 import { dosenApi } from '@/api/dosen';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
-import { mataKuliahApi } from '@/api/mataKuliah';
-import { kurikulumApi } from '@/api/kurikulum';
 import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
-import type { HariKuliah, MataKuliah, Kurikulum } from '@/types/entities';
+import type { HariKuliah } from '@/types/entities';
+import { formatTahunAjaran, withCurrentTahunAjaran } from '@/utils/tahunAjaranOptions';
 
-const { canCreate, canUpdate, canDelete } = usePermission(MENU.PRODI_JADWAL_KULIAH_MANAGEMENT);
+// Prodi hanya bisa mengubah & export jadwal; tambah/import/hapus dilakukan di modul BAAK.
+const { canUpdate } = usePermission(MENU.PRODI_JADWAL_KULIAH_MANAGEMENT);
 
 const dosenOptions = ref<{ value: number; label: string }[]>([]);
 const tahunAjaranAktifOptions = ref<{ value: number; label: string }[]>([]);
-const mataKuliahList = ref<MataKuliah[]>([]);
-const mataKuliahOptions = ref<{ value: string; label: string }[]>([]);
-const kurikulumList = ref<Kurikulum[]>([]);
 onMounted(async () => {
-  const [dosenResult, tahunAjaranResult, mataKuliahResult, kurikulumResult] = await Promise.all([
+  const [dosenResult, tahunAjaranResult] = await Promise.all([
     dosenApi.list({ limit: 200 }),
     tahunAjaranApi.list({ limit: 100, isActive: true }),
-    mataKuliahApi.list({ limit: 500 }),
-    kurikulumApi.list({ limit: 1000 }),
   ]);
   dosenOptions.value = dosenResult.data.map((d) => ({ value: d.id, label: d.namaLengkap }));
-  tahunAjaranAktifOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: t.nama }));
-  mataKuliahList.value = mataKuliahResult.data;
-  mataKuliahOptions.value = mataKuliahResult.data.map((mk) => ({ value: mk.kodeMk, label: `${mk.kodeMk} - ${mk.namaMk}` }));
-  kurikulumList.value = kurikulumResult.data;
+  tahunAjaranAktifOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
 });
 
-const normalizeKode = (kode: string) => kode.trim().toLowerCase();
-
-const findSemester = (kode: string, tahunAjaranId: number | ''): number | null => {
-  const target = normalizeKode(kode);
-  const candidates = kurikulumList.value.filter((k) => normalizeKode(k.kode) === target);
-  if (candidates.length === 0) return null;
-  const matchByTahun = tahunAjaranId ? candidates.find((k) => k.tahunAjaranId === tahunAjaranId) : undefined;
-  return (matchByTahun ?? candidates[0]).semester;
+// Pilihan mata kuliah = Matakuliah Aktif (menu Prodi) pada tahun ajaran jadwal; bisa berisi mata
+// kuliah dari beberapa tahun kurikulum sekaligus.
+const matakuliahAktifList = ref<MatakuliahAktifOption[]>([]);
+const loadingMatakuliah = ref(false);
+const loadMatakuliahAktif = async (tahunAjaranId: number | '') => {
+  matakuliahAktifList.value = [];
+  if (!tahunAjaranId) return;
+  loadingMatakuliah.value = true;
+  try {
+    matakuliahAktifList.value = await jadwalKuliahApi.matakuliahOptions(Number(tahunAjaranId));
+    // Saat edit: cocokkan jadwal tersimpan (kurikulum + semester) ke aktivasinya.
+    if (form.mataKuliahId && !form.matakuliahAktifId) {
+      const match = matakuliahAktifList.value.find(
+        (mk) => mk.mataKuliahId === form.mataKuliahId && mk.semester === form.semester
+      );
+      if (match) form.matakuliahAktifId = match.id;
+    }
+  } finally {
+    loadingMatakuliah.value = false;
+  }
 };
+const matakuliahAktifOptions = computed(() =>
+  matakuliahAktifList.value.map((mk) => ({
+    value: mk.id,
+    label: `Smt ${mk.semester} · ${mk.kode} - ${mk.mataKuliah} · Kurikulum ${mk.tahunKurikulum ?? '-'}${mk.prodi ? ` · ${mk.prodi}` : ''}`,
+  }))
+);
 
 const HARI_OPTIONS: { value: HariKuliah; label: string }[] = [
   { value: 'SENIN', label: 'Senin' },
@@ -75,26 +86,22 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
   sortBy,
   sortDir,
   handleSort,
-  deleteTarget,
-  deleting,
   isFormOpen,
   editingItem,
   fetchItems,
-  openCreate,
   openEdit,
   closeForm,
   onSaved,
-  requestDelete,
-  cancelDelete,
-  confirmDelete,
 } = useCrudPage({
   fetchList: jadwalKuliahApi.list,
+  // Wajib diisi composable, tetapi tidak dipakai: prodi tidak bisa menghapus jadwal.
   remove: jadwalKuliahApi.remove,
   extraQuery: () => ({ isActive: statusFilter.value || undefined }),
 });
@@ -127,6 +134,8 @@ const hariLabel = (hari: HariKuliah[] | null) => {
 
 interface JadwalKuliahFormState {
   kelas: string;
+  mataKuliahId: number | '';
+  matakuliahAktifId: number | '';
   kodeMataKuliah: string;
   namaMataKuliah: string;
   sks: number | '';
@@ -134,6 +143,8 @@ interface JadwalKuliahFormState {
   dosenKordinatorId: number | '';
   tahunAjaranId: number | '';
   dosenPengampuIds: number[];
+  /** SKS yang diberikan ke tiap dosen pengampu, key = dosenId. */
+  dosenPengampuSks: Record<number, number | ''>;
   hari: HariKuliah[];
   jam: number | '';
   ruangan: string;
@@ -143,6 +154,8 @@ interface JadwalKuliahFormState {
 
 const emptyForm = (): JadwalKuliahFormState => ({
   kelas: '',
+  mataKuliahId: '',
+  matakuliahAktifId: '',
   kodeMataKuliah: '',
   namaMataKuliah: '',
   sks: '',
@@ -150,6 +163,7 @@ const emptyForm = (): JadwalKuliahFormState => ({
   dosenKordinatorId: '',
   tahunAjaranId: '',
   dosenPengampuIds: [],
+  dosenPengampuSks: {},
   hari: [],
   jam: '',
   ruangan: '',
@@ -171,6 +185,7 @@ watch(
     Object.assign(form, emptyForm());
     if (editing) {
       form.kelas = editing.kelas;
+      form.mataKuliahId = editing.mataKuliahId ?? '';
       form.kodeMataKuliah = editing.kodeMataKuliah;
       form.namaMataKuliah = editing.namaMataKuliah;
       form.sks = editing.sks ?? '';
@@ -178,6 +193,9 @@ watch(
       form.dosenKordinatorId = editing.dosenKordinatorId;
       form.tahunAjaranId = editing.tahunAjaranId ?? '';
       form.dosenPengampuIds = editing.dosenPengampu?.map((d) => d.id) ?? [];
+      form.dosenPengampuSks = Object.fromEntries(
+        (editing.dosenPengampu ?? []).map((d) => [d.id, d.JadwalKuliahDosenPengampu?.sks ?? ''])
+      );
       form.hari = editing.hari ?? [];
       form.jam = editing.jam ?? '';
       form.ruangan = editing.ruangan ?? '';
@@ -188,32 +206,59 @@ watch(
   { immediate: true }
 );
 
+// Ruangan dipilih dari Master Ruangan (Modul Admin), dimuat ulang tiap form dibuka. Isian lama yang
+// belum ada di master tetap ditampilkan supaya tidak hilang saat jadwal disimpan ulang.
+const ruanganMaster = ref<SelectOption[]>([]);
+watch(isFormOpen, async (open) => {
+  if (!open) return;
+  try {
+    ruanganMaster.value = await jadwalKuliahApi.ruanganOptions();
+  } catch {
+    ruanganMaster.value = [];
+  }
+});
+const ruanganOptions = computed<SelectOption[]>(() => {
+  const lama = editingItem.value?.ruangan;
+  if (!lama || ruanganMaster.value.some((o) => o.value === lama)) return ruanganMaster.value;
+  return [...ruanganMaster.value, { value: lama, label: `${lama} (isian lama, belum ada di Master Ruangan)` }];
+});
+
 watch(
-  () => form.kodeMataKuliah,
-  (kode) => {
-    if (!kode) return;
-    const found = mataKuliahList.value.find((mk) => mk.kodeMk === kode);
-    if (found) {
-      form.namaMataKuliah = found.namaMk;
-      form.sks = found.sks;
-    }
-    form.semester = findSemester(kode, form.tahunAjaranId) ?? '';
+  () => [isFormOpen.value, form.tahunAjaranId] as const,
+  ([open, tahunAjaranId], previous) => {
+    if (!open) return;
+    if (previous && previous[0] && previous[1] !== tahunAjaranId) form.matakuliahAktifId = '';
+    loadMatakuliahAktif(tahunAjaranId);
   }
 );
 
 watch(
-  () => form.tahunAjaranId,
-  (tahunAjaranId) => {
-    if (!form.kodeMataKuliah) return;
-    form.semester = findSemester(form.kodeMataKuliah, tahunAjaranId) ?? '';
+  () => form.matakuliahAktifId,
+  (id) => {
+    const found = matakuliahAktifList.value.find((mk) => mk.id === id);
+    if (!found) return;
+    form.mataKuliahId = found.mataKuliahId;
+    form.kodeMataKuliah = found.kode;
+    form.namaMataKuliah = found.mataKuliah;
+    form.sks = found.sksTotal;
+    form.semester = found.semester;
   }
 );
 
 const togglePengampu = (dosenId: number) => {
   const idx = form.dosenPengampuIds.indexOf(dosenId);
   if (idx === -1) form.dosenPengampuIds.push(dosenId);
-  else form.dosenPengampuIds.splice(idx, 1);
+  else {
+    form.dosenPengampuIds.splice(idx, 1);
+    delete form.dosenPengampuSks[dosenId];
+  }
 };
+
+const totalSksPengampu = computed(() =>
+  form.dosenPengampuIds.reduce((sum, id) => sum + (Number(form.dosenPengampuSks[id]) || 0), 0)
+);
+
+const formatSks = (sks: number) => sks.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 
 const toggleHari = (hari: HariKuliah) => {
   const idx = form.hari.indexOf(hari);
@@ -224,10 +269,11 @@ const toggleHari = (hari: HariKuliah) => {
 const handleSubmit = async () => {
   Object.keys(errors).forEach((k) => delete errors[k]);
   if (!form.kelas.trim()) errors.kelas = 'Kelas wajib diisi';
-  if (!form.kodeMataKuliah.trim()) errors.kodeMataKuliah = 'Kode mata kuliah wajib diisi';
-  if (!form.namaMataKuliah.trim()) errors.namaMataKuliah = 'Mata kuliah wajib diisi';
+  // Jadwal lama (sebelum Matakuliah Aktif) boleh tetap tanpa mataKuliahId selama kode MK-nya ada.
+  if (!form.matakuliahAktifId && !(editingItem.value && !form.mataKuliahId && form.kodeMataKuliah)) errors.mataKuliahId = 'Pilih mata kuliah dari Matakuliah Aktif';
   if (!form.dosenKordinatorId) errors.dosenKordinatorId = 'Dosen kordinator wajib dipilih';
   if (!form.tahunAjaranId) errors.tahunAjaranId = 'Tahun ajaran wajib dipilih';
+  if (form.dosenPengampuIds.some((id) => Number(form.dosenPengampuSks[id]) < 0)) errors.dosenPengampu = 'SKS dosen pengampu tidak boleh negatif';
   if (Object.keys(errors).length > 0) return;
 
   submitting.value = true;
@@ -235,24 +281,25 @@ const handleSubmit = async () => {
   try {
     const payload: JadwalKuliahPayload = {
       kelas: form.kelas.trim(),
+      ...(form.mataKuliahId ? { mataKuliahId: Number(form.mataKuliahId) } : {}),
       kodeMataKuliah: form.kodeMataKuliah.trim(),
       namaMataKuliah: form.namaMataKuliah.trim(),
       sks: form.sks === '' ? null : Number(form.sks),
       semester: form.semester === '' ? null : Number(form.semester),
       dosenKordinatorId: Number(form.dosenKordinatorId),
       tahunAjaranId: Number(form.tahunAjaranId),
-      dosenPengampuIds: form.dosenPengampuIds,
+      dosenPengampu: form.dosenPengampuIds.map((dosenId) => {
+        const sks = form.dosenPengampuSks[dosenId];
+        return { dosenId, sks: sks === '' || sks === undefined ? null : Number(sks) };
+      }),
       hari: form.hari.length ? form.hari : null,
       jam: form.jam === '' ? null : Number(form.jam),
       ruangan: form.ruangan.trim() || null,
       gcr: form.gcr.trim() || null,
       isActive: form.isActive,
     };
-    if (editingItem.value) {
-      await jadwalKuliahApi.update(editingItem.value.id, payload);
-    } else {
-      await jadwalKuliahApi.create(payload);
-    }
+    if (!editingItem.value) return;
+    await jadwalKuliahApi.update(editingItem.value.id, payload);
     onSaved();
   } catch (err) {
     formError.value = extractErrorMessage(err, 'Gagal menyimpan jadwal kuliah');
@@ -264,18 +311,18 @@ const handleSubmit = async () => {
 
 <template>
   <div>
-    <PageHeader title="Master Jadwal Kuliah" subtitle="Kelola jadwal perkuliahan per kelas dan mata kuliah.">
+    <PageHeader title="Master Jadwal Kuliah" subtitle="Jadwal perkuliahan dari BAAK. Prodi dapat mengubah dan meng-export jadwal.">
       <template #actions>
         <ImportExportButtons
           :export-fn="jadwalKuliahApi.exportExcel"
           :import-fn="jadwalKuliahApi.importExcel"
           :template-fn="jadwalKuliahApi.importTemplate"
-          :can-import="canCreate"
+          :can-import="false"
           filename="jadwal-kuliah.xlsx"
           template-filename="template-import-jadwal-kuliah.xlsx"
           @imported="fetchItems"
         />
-        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Data</AppButton>
+        <ExportJadwalV2Button />
       </template>
     </PageHeader>
 
@@ -288,6 +335,10 @@ const handleSubmit = async () => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"
@@ -302,11 +353,16 @@ const handleSubmit = async () => {
           {{ item.namaMataKuliah }}
           <span v-if="item.sks !== null" class="text-on-surface-variant">[ {{ item.sks }} ]</span>
         </template>
-        <template #cell-tahunAjaran="{ item }">{{ item.tahunAjaran?.nama ?? '-' }}</template>
+        <template #cell-tahunAjaran="{ item }">{{ formatTahunAjaran(item.tahunAjaran) }}</template>
         <template #cell-dosenKordinator="{ item }">{{ item.dosenKordinator?.namaLengkap ?? '-' }}</template>
         <template #cell-dosenPengampu="{ item }">
           <template v-if="item.dosenPengampu && item.dosenPengampu.length">
-            <p v-for="d in item.dosenPengampu" :key="d.id" class="whitespace-nowrap">{{ d.namaLengkap }}</p>
+            <p v-for="d in item.dosenPengampu" :key="d.id" class="whitespace-nowrap">
+              {{ d.namaLengkap }}
+              <span v-if="d.JadwalKuliahDosenPengampu?.sks != null" class="text-on-surface-variant">
+                ({{ formatSks(d.JadwalKuliahDosenPengampu.sks) }} SKS)
+              </span>
+            </p>
           </template>
           <span v-else>-</span>
         </template>
@@ -318,7 +374,7 @@ const handleSubmit = async () => {
           <StatusBadge :label="item.isActive ? 'Aktif' : 'Non-aktif'" :variant="item.isActive ? 'success' : 'neutral'" />
         </template>
         <template #actions="{ item }">
-          <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
+          <RowActions :can-update="canUpdate" :can-delete="false" @edit="openEdit(item)" />
         </template>
       </DataTable>
 
@@ -327,7 +383,7 @@ const handleSubmit = async () => {
 
     <Modal
       :model-value="isFormOpen"
-      :title="editingItem ? 'Ubah Jadwal Kuliah' : 'Tambah Jadwal Kuliah'"
+      title="Ubah Jadwal Kuliah"
       size="lg"
       @update:model-value="closeForm"
     >
@@ -340,16 +396,25 @@ const handleSubmit = async () => {
           <TextInput v-model.number="form.sks" label="SKS" type="number" disabled />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SearchableSelect
-            v-model="form.kodeMataKuliah"
-            label="Kode Mata Kuliah"
-            required
-            placeholder="Pilih kode mata kuliah..."
-            search-placeholder="Cari kode/nama mata kuliah..."
-            :options="mataKuliahOptions"
-            :error="errors.kodeMataKuliah"
-          />
-          <TextInput v-model="form.namaMataKuliah" label="Mata Kuliah" required disabled :error="errors.namaMataKuliah" />
+          <div>
+            <SearchableSelect
+              v-model="form.matakuliahAktifId"
+              label="Mata Kuliah (Matakuliah Aktif)"
+              required
+              :placeholder="!form.tahunAjaranId ? 'Pilih tahun ajaran dulu' : loadingMatakuliah ? 'Memuat...' : 'Pilih mata kuliah...'"
+              search-placeholder="Cari kode/nama mata kuliah..."
+              :options="matakuliahAktifOptions"
+              :disabled="!form.tahunAjaranId"
+              :error="errors.mataKuliahId"
+            />
+            <p v-if="form.tahunAjaranId && !loadingMatakuliah && !matakuliahAktifList.length" class="mt-1 text-label-sm text-on-surface-variant">
+              Belum ada mata kuliah aktif untuk tahun ajaran ini. Aktifkan dulu di menu Prodi &rsaquo; Matakuliah Aktif.
+            </p>
+            <p v-else-if="editingItem && !form.mataKuliahId" class="mt-1 text-label-sm text-on-surface-variant">
+              Jadwal lama: {{ form.kodeMataKuliah }} belum terhubung ke Matakuliah Aktif.
+            </p>
+          </div>
+          <TextInput v-model="form.namaMataKuliah" label="Nama Mata Kuliah" disabled />
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model.number="form.semester" label="Semester" type="number" disabled />
@@ -369,29 +434,46 @@ const handleSubmit = async () => {
             label="Tahun Ajaran"
             required
             placeholder="Pilih tahun ajaran..."
-            :options="tahunAjaranAktifOptions"
+            :options="withCurrentTahunAjaran(tahunAjaranAktifOptions, editingItem?.tahunAjaran)"
             :error="errors.tahunAjaranId"
           />
         </div>
 
-        <label class="block">
+        <div>
           <span class="block font-medium text-label-md text-on-surface mb-2">Dosen Pengampu</span>
           <div class="border border-outline-variant rounded-md max-h-40 overflow-y-auto p-2 space-y-1">
-            <label
+            <div
               v-for="opt in dosenOptions"
               :key="opt.value"
-              class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-surface-container cursor-pointer text-body-sm text-on-surface"
+              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-surface-container text-body-sm text-on-surface"
             >
-              <input
-                type="checkbox"
-                :checked="form.dosenPengampuIds.includes(opt.value)"
-                @change="togglePengampu(opt.value)"
-              />
-              {{ opt.label }}
-            </label>
+              <label class="flex flex-1 min-w-0 items-center gap-2 py-0.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="form.dosenPengampuIds.includes(opt.value)"
+                  @change="togglePengampu(opt.value)"
+                />
+                <span class="truncate">{{ opt.label }}</span>
+              </label>
+              <label v-if="form.dosenPengampuIds.includes(opt.value)" class="flex shrink-0 items-center gap-1.5">
+                <input
+                  v-model="form.dosenPengampuSks[opt.value]"
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  placeholder="0"
+                  class="w-20 px-2 py-1 border border-outline-variant rounded-md bg-surface-container-lowest text-body-sm text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+                <span class="text-label-sm text-on-surface-variant">SKS</span>
+              </label>
+            </div>
             <p v-if="dosenOptions.length === 0" class="text-body-sm text-on-surface-variant px-2 py-1.5">Belum ada data dosen</p>
           </div>
-        </label>
+          <p v-if="errors.dosenPengampu" class="mt-1 text-label-sm text-error">{{ errors.dosenPengampu }}</p>
+          <p v-else-if="form.dosenPengampuIds.length" class="mt-1 text-label-sm text-on-surface-variant">
+            Total SKS dosen pengampu: {{ formatSks(totalSksPengampu) }}<template v-if="form.sks !== ''"> dari {{ form.sks }} SKS mata kuliah</template>
+          </p>
+        </div>
 
         <label class="block">
           <span class="block font-medium text-label-md text-on-surface mb-2">Hari</span>
@@ -415,7 +497,13 @@ const handleSubmit = async () => {
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model.number="form.jam" label="Jam Ke-" type="number" />
-          <TextInput v-model="form.ruangan" label="Ruangan" placeholder="mis. 4.01 A" />
+          <SelectInput
+            :model-value="form.ruangan"
+            label="Ruangan"
+            placeholder="Pilih ruangan..."
+            :options="ruanganOptions"
+            @update:model-value="form.ruangan = String($event ?? '')"
+          />
         </div>
         <TextInput v-model="form.gcr" label="GCR" placeholder="Kode/tautan Google Classroom" />
         <CheckboxToggle v-model="form.isActive" label="Status Aktif" />
@@ -426,13 +514,5 @@ const handleSubmit = async () => {
       </template>
     </Modal>
 
-    <ConfirmDialog
-      :open="!!deleteTarget"
-      title="Hapus Jadwal Kuliah"
-      :message="`Yakin ingin menghapus jadwal ${deleteTarget?.namaMataKuliah ?? ''} (${deleteTarget?.kelas ?? ''})?`"
-      :loading="deleting"
-      @confirm="confirmDelete"
-      @cancel="cancelDelete"
-    />
   </div>
 </template>

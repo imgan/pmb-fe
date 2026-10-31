@@ -1,111 +1,62 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput, { type SelectOption } from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import TextareaInput from '@/components/ui/TextareaInput.vue';
 import DateInput from '@/components/ui/DateInput.vue';
+import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import RowActions from '@/components/ui/RowActions.vue';
 import AppButton from '@/components/ui/AppButton.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
 import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { kurikulumApi, type KurikulumPayload } from '@/api/kurikulum';
+import { mataKuliahApi } from '@/api/mataKuliah';
 import { jurusanApi } from '@/api/jurusan';
-import { tahunAjaranApi } from '@/api/tahunAjaran';
 import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
+import { useProdiContext } from '@/composables/useProdiContext';
 import { MENU } from '@/constants/menuCodes';
-import type {
-  Kurikulum,
-  KelompokMataKuliah,
-  KelompokKurikulum,
-  JenisMataKuliah,
-  KelompokKompetensi,
-} from '@/types/entities';
+import { formatDate } from '@/utils/format';
+import type { Kurikulum } from '@/types/entities';
 
+/**
+ * Prodi → Kurikulum → Master Kurikulum: daftar kurikulum (header prodi + tahun). Satu kurikulum
+ * memiliki banyak mata kuliah — dikelola di halaman detail (tombol "Mata Kuliah").
+ */
+const router = useRouter();
+const { prodiLocked, prodiPlaceholder, defaultJurusanId, isProdiScoped } = useProdiContext();
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.PRODI_KURIKULUM_MANAGEMENT);
 
 const jurusanOptions = ref<SelectOption[]>([]);
-const tahunAjaranOptions = ref<SelectOption[]>([]);
+const tahunKurikulumOptions = ref<SelectOption[]>([]);
+const loadTahunKurikulumOptions = async () => {
+  const years = await kurikulumApi.tahunOptions();
+  tahunKurikulumOptions.value = years.map((y) => ({ value: y, label: `Kurikulum ${y}` }));
+};
 onMounted(async () => {
-  const [jurusanResult, tahunAjaranResult] = await Promise.all([
-    jurusanApi.list({ limit: 200 }),
-    tahunAjaranApi.list({ limit: 100 }),
-  ]);
+  const jurusanResult = await jurusanApi.listProdi({ limit: 200 });
   jurusanOptions.value = jurusanResult.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
-  tahunAjaranOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: t.nama }));
+  loadTahunKurikulumOptions();
 });
 
-const SEMESTER_OPTIONS: SelectOption[] = Array.from({ length: 14 }, (_, i) => ({ value: i + 1, label: `Semester ${i + 1}` }));
-const SKS_OPTIONS: SelectOption[] = Array.from({ length: 7 }, (_, i) => ({ value: i, label: String(i) }));
-
-const KELOMPOK_MATA_KULIAH_LABELS: Record<KelompokMataKuliah, string> = {
-  MPK: 'MPK - Pengembangan Kepribadian',
-  MKK: 'MKK - Keilmuan & Keterampilan',
-  MKB: 'MKB - Keahlian Berkarya',
-  MPB: 'MPB - Perilaku Berkarya',
-  MBB: 'MBB - Berkehidupan Bermasyarakat',
-};
-const kelompokMataKuliahOptions: SelectOption[] = Object.entries(KELOMPOK_MATA_KULIAH_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-const KELOMPOK_KURIKULUM_LABELS: Record<KelompokKurikulum, string> = { WAJIB: 'Wajib', PILIHAN: 'Pilihan' };
-const kelompokKurikulumOptions: SelectOption[] = Object.entries(KELOMPOK_KURIKULUM_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-const JENIS_MATA_KULIAH_LABELS: Record<JenisMataKuliah, string> = {
-  TEORI: 'Teori',
-  PRAKTIK: 'Praktik',
-  TEORI_PRAKTIK: 'Teori & Praktik',
-};
-const jenisMataKuliahOptions: SelectOption[] = Object.entries(JENIS_MATA_KULIAH_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-const KELOMPOK_KOMPETENSI_LABELS: Record<KelompokKompetensi, string> = {
-  UTAMA: 'Utama',
-  PENDUKUNG: 'Pendukung',
-  LAINNYA: 'Lainnya',
-};
-const kelompokKompetensiOptions: SelectOption[] = Object.entries(KELOMPOK_KOMPETENSI_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}));
-
-const kompIlmuKomputerOptions: SelectOption[] = [
-  'Algoritma & Pemrograman',
-  'Basis Data',
-  'Jaringan Komputer',
-  'Rekayasa Perangkat Lunak',
-  'Kecerdasan Buatan',
-  'Sistem Informasi',
-].map((label) => ({ value: label, label }));
-
-const mataKuliahMinatOptions: SelectOption[] = [
-  'Rekayasa Perangkat Lunak',
-  'Jaringan & Keamanan',
-  'Data Science',
-  'Sistem Informasi',
-  'Multimedia',
-].map((label) => ({ value: label, label }));
-
 const jurusanFilter = ref<number | ''>('');
-const tahunAjaranFilter = ref<number | ''>('');
+const tahunKurikulumFilter = ref<number | ''>('');
+
 
 const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -124,12 +75,11 @@ const {
   requestDelete,
   cancelDelete,
   confirmDelete,
-} = useCrudPage({
+} = useCrudPage<Kurikulum>({
   fetchList: kurikulumApi.list,
   remove: kurikulumApi.remove,
-  extraQuery: () => ({ jurusanId: jurusanFilter.value || undefined, tahunAjaranId: tahunAjaranFilter.value || undefined }),
+  extraQuery: () => ({ jurusanId: jurusanFilter.value || undefined, tahunKurikulum: tahunKurikulumFilter.value || undefined }),
 });
-
 fetchItems();
 
 const onFilterChange = () => {
@@ -138,65 +88,37 @@ const onFilterChange = () => {
 };
 
 const columns: DataTableColumn[] = [
-  { key: 'kode', label: 'Kode', sortable: true },
-  { key: 'mataKuliah', label: 'Mata Kuliah', sortable: true },
+  { key: 'nama', label: 'Kurikulum', sortable: true },
   { key: 'jurusan', label: 'Prodi' },
-  { key: 'tahunAjaran', label: 'Tahun Kurikulum', sortable: true },
-  { key: 'semester', label: 'Semester', align: 'center', sortable: true },
-  { key: 'sksTotal', label: 'SKS Total', align: 'center' },
-  { key: 'kelompokMataKuliah', label: 'Kelompok MK', align: 'center' },
-  { key: 'jenisMataKuliah', label: 'Jenis MK', align: 'center' },
-  { key: 'mataKuliahMinat', label: 'Minat' },
+  { key: 'tahunKurikulum', label: 'Tahun', align: 'center', sortable: true },
+  { key: 'efektif', label: 'Masa Efektif' },
+  // Grup header "Mata Kuliah": jumlah MK OBE | Non OBE | Total.
+  { key: 'jumlahObe', label: 'OBE', align: 'center', group: 'Mata Kuliah' },
+  { key: 'jumlahNonObe', label: 'Non OBE', align: 'center', group: 'Mata Kuliah' },
+  { key: 'jumlahMataKuliah', label: 'Total', align: 'center', group: 'Mata Kuliah' },
+  { key: 'totalSks', label: 'Jumlah SKS', align: 'center' },
+  { key: 'isActive', label: 'Status', align: 'center' },
+  { key: 'mk', label: 'Detail', align: 'center' },
 ];
 
 interface FormState {
-  jurusanId: number | '';
-  tahunAjaranId: number | '';
-  kode: string;
-  mataKuliah: string;
-  mataKuliahEn: string;
-  kelompokMataKuliah: KelompokMataKuliah | '';
-  kelompokKurikulum: KelompokKurikulum | '';
-  jenisMataKuliah: JenisMataKuliah | '';
-  sksTeori: number;
-  sksPraktek: number;
-  sksLab: number;
-  sksSimulasi: number;
-  kelompokKompetensi: KelompokKompetensi | '';
-  kompIlmuKomputer: string;
-  mataKuliahMinat: string;
-  muatanMataKuliah: string;
-  metodePembelajaran: string;
+  jurusanId: number | string | null;
+  tahunKurikulum: string;
+  nama: string;
   tanggalMulaiEfektif: string;
   tanggalAkhirEfektif: string;
-  idMatkul: string;
-  semester: number | '';
+  keterangan: string;
+  isActive: boolean;
 }
-
 const emptyForm = (): FormState => ({
-  jurusanId: '',
-  tahunAjaranId: '',
-  kode: '',
-  mataKuliah: '',
-  mataKuliahEn: '',
-  kelompokMataKuliah: '',
-  kelompokKurikulum: '',
-  jenisMataKuliah: '',
-  sksTeori: 0,
-  sksPraktek: 0,
-  sksLab: 0,
-  sksSimulasi: 0,
-  kelompokKompetensi: '',
-  kompIlmuKomputer: '',
-  mataKuliahMinat: '',
-  muatanMataKuliah: '',
-  metodePembelajaran: '',
+  jurusanId: defaultJurusanId ?? '',
+  tahunKurikulum: '',
+  nama: '',
   tanggalMulaiEfektif: '',
   tanggalAkhirEfektif: '',
-  idMatkul: '',
-  semester: '',
+  keterangan: '',
+  isActive: true,
 });
-
 const form = reactive(emptyForm());
 const formError = ref<string | null>(null);
 const errors = reactive<Record<string, string>>({});
@@ -204,34 +126,21 @@ const submitting = ref(false);
 
 watch(
   () => [isFormOpen.value, editingItem.value] as const,
-  ([open, editing]) => {
+  ([open, k]) => {
     if (!open) return;
-    Object.keys(errors).forEach((k) => delete errors[k]);
+    Object.keys(errors).forEach((key) => delete errors[key]);
     formError.value = null;
     Object.assign(form, emptyForm());
-    if (editing) {
-      const item = editing as Kurikulum;
-      form.jurusanId = item.jurusanId ?? '';
-      form.tahunAjaranId = item.tahunAjaranId ?? '';
-      form.kode = item.kode;
-      form.mataKuliah = item.mataKuliah;
-      form.mataKuliahEn = item.mataKuliahEn ?? '';
-      form.kelompokMataKuliah = item.kelompokMataKuliah ?? '';
-      form.kelompokKurikulum = item.kelompokKurikulum ?? '';
-      form.jenisMataKuliah = item.jenisMataKuliah ?? '';
-      form.sksTeori = item.sksTeori;
-      form.sksPraktek = item.sksPraktek;
-      form.sksLab = item.sksLab;
-      form.sksSimulasi = item.sksSimulasi;
-      form.kelompokKompetensi = item.kelompokKompetensi ?? '';
-      form.kompIlmuKomputer = item.kompIlmuKomputer ?? '';
-      form.mataKuliahMinat = item.mataKuliahMinat ?? '';
-      form.muatanMataKuliah = item.muatanMataKuliah ?? '';
-      form.metodePembelajaran = item.metodePembelajaran ?? '';
-      form.tanggalMulaiEfektif = item.tanggalMulaiEfektif?.slice(0, 10) ?? '';
-      form.tanggalAkhirEfektif = item.tanggalAkhirEfektif?.slice(0, 10) ?? '';
-      form.idMatkul = item.idMatkul ?? '';
-      form.semester = item.semester ?? '';
+    if (k) {
+      Object.assign(form, {
+        jurusanId: k.jurusanId ?? '',
+        tahunKurikulum: k.tahunKurikulum ? String(k.tahunKurikulum) : '',
+        nama: k.nama,
+        tanggalMulaiEfektif: k.tanggalMulaiEfektif?.slice(0, 10) ?? '',
+        tanggalAkhirEfektif: k.tanggalAkhirEfektif?.slice(0, 10) ?? '',
+        keterangan: k.keterangan ?? '',
+        isActive: k.isActive,
+      });
     }
   },
   { immediate: true }
@@ -239,64 +148,56 @@ watch(
 
 const handleSubmit = async () => {
   Object.keys(errors).forEach((k) => delete errors[k]);
-  if (!form.kode.trim()) errors.kode = 'Kode matakuliah wajib diisi';
-  if (!form.mataKuliah.trim()) errors.mataKuliah = 'Nama matakuliah wajib diisi';
-  if (Object.keys(errors).length > 0) return;
+  if (!form.jurusanId) errors.jurusanId = 'Prodi wajib dipilih';
+  if (!/^(19|20)\d{2}$/.test(form.tahunKurikulum.trim())) errors.tahunKurikulum = 'Isi tahun 4 digit, mis. 2026';
+  if (Object.keys(errors).length) return;
 
+  const payload: KurikulumPayload = {
+    jurusanId: Number(form.jurusanId),
+    tahunKurikulum: Number(form.tahunKurikulum.trim()),
+    nama: form.nama.trim() || null,
+    tanggalMulaiEfektif: form.tanggalMulaiEfektif || null,
+    tanggalAkhirEfektif: form.tanggalAkhirEfektif || null,
+    keterangan: form.keterangan.trim() || null,
+    isActive: form.isActive,
+  };
   submitting.value = true;
   formError.value = null;
   try {
-    const payload: KurikulumPayload = {
-      jurusanId: form.jurusanId === '' ? null : Number(form.jurusanId),
-      tahunAjaranId: form.tahunAjaranId === '' ? null : Number(form.tahunAjaranId),
-      kode: form.kode.trim(),
-      mataKuliah: form.mataKuliah.trim(),
-      mataKuliahEn: form.mataKuliahEn.trim() || null,
-      kelompokMataKuliah: form.kelompokMataKuliah || null,
-      kelompokKurikulum: form.kelompokKurikulum || null,
-      jenisMataKuliah: form.jenisMataKuliah || null,
-      sksTeori: Number(form.sksTeori) || 0,
-      sksPraktek: Number(form.sksPraktek) || 0,
-      sksLab: Number(form.sksLab) || 0,
-      sksSimulasi: Number(form.sksSimulasi) || 0,
-      kelompokKompetensi: form.kelompokKompetensi || null,
-      kompIlmuKomputer: form.kompIlmuKomputer || null,
-      mataKuliahMinat: form.mataKuliahMinat || null,
-      muatanMataKuliah: form.muatanMataKuliah.trim() || null,
-      metodePembelajaran: form.metodePembelajaran.trim() || null,
-      tanggalMulaiEfektif: form.tanggalMulaiEfektif || null,
-      tanggalAkhirEfektif: form.tanggalAkhirEfektif || null,
-      idMatkul: form.idMatkul.trim() || null,
-      semester: form.semester === '' ? null : Number(form.semester),
-    };
-    if (editingItem.value) {
-      await kurikulumApi.update(editingItem.value.id, payload);
-    } else {
-      await kurikulumApi.create(payload);
-    }
+    if (editingItem.value) await kurikulumApi.update(editingItem.value.id, payload);
+    else await kurikulumApi.create(payload);
     onSaved();
+    loadTahunKurikulumOptions();
   } catch (err) {
-    formError.value = extractErrorMessage(err, 'Gagal menyimpan data kurikulum');
+    formError.value = extractErrorMessage(err, 'Gagal menyimpan kurikulum');
   } finally {
     submitting.value = false;
   }
+};
+
+const bukaMataKuliah = (k: Kurikulum) => router.push({ name: 'prodi-kurikulum-detail', params: { id: k.id } });
+const exportSemua = () => mataKuliahApi.exportExcel({ jurusanId: jurusanFilter.value || undefined, tahunKurikulum: tahunKurikulumFilter.value || undefined });
+const importSemua = (file: string) => mataKuliahApi.importExcel(file);
+const onImported = () => {
+  fetchItems();
+  loadTahunKurikulumOptions();
 };
 </script>
 
 <template>
   <div>
-    <PageHeader title="Master Kurikulum" subtitle="Master data kurikulum / mata kuliah.">
+    <PageHeader title="Master Kurikulum" subtitle="Kurikulum per prodi & tahun; tiap kurikulum memiliki banyak mata kuliah.">
       <template #actions>
         <ImportExportButtons
-          :export-fn="kurikulumApi.exportExcel"
-          :import-fn="kurikulumApi.importExcel"
-          :template-fn="kurikulumApi.importTemplate"
+          :export-fn="exportSemua"
+          :import-fn="importSemua"
+          :template-fn="mataKuliahApi.importTemplate"
           :can-import="canCreate"
-          filename="kurikulum.xlsx"
-          template-filename="template-import-kurikulum.xlsx"
-          @imported="fetchItems"
+          filename="mata-kuliah-kurikulum.xlsx"
+          template-filename="template-import-mata-kuliah.xlsx"
+          @imported="onImported"
         />
-        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Data</AppButton>
+        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Kurikulum</AppButton>
       </template>
     </PageHeader>
 
@@ -305,128 +206,79 @@ const handleSubmit = async () => {
 
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 md:justify-end">
         <div class="w-full md:w-52">
-          <SelectInput v-model="jurusanFilter" placeholder="Semua Prodi" :options="jurusanOptions" @change="onFilterChange" />
+          <SelectInput v-model="jurusanFilter" :placeholder="prodiPlaceholder('Semua Prodi')" :disabled="prodiLocked" :options="jurusanOptions" @change="onFilterChange" />
         </div>
         <div class="w-full md:w-52">
-          <SelectInput
-            v-model="tahunAjaranFilter"
-            placeholder="Semua Tahun Kurikulum"
-            :options="tahunAjaranOptions"
-            @change="onFilterChange"
-          />
+          <SelectInput v-model="tahunKurikulumFilter" placeholder="Semua Tahun Kurikulum" :options="tahunKurikulumOptions" @change="onFilterChange" />
         </div>
         <div class="w-full md:w-64">
-          <SearchInput v-model="search" placeholder="Cari kode atau mata kuliah..." />
+          <SearchInput v-model="search" placeholder="Cari nama kurikulum..." />
         </div>
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"
         :items="items"
         :loading="loading"
-        empty-message="Belum ada data kurikulum"
+        empty-message="Belum ada kurikulum"
         :sort-key="sortBy"
         :sort-dir="sortDir"
         @sort="handleSort"
       >
-        <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
-        <template #cell-tahunAjaran="{ item }">{{ item.tahunAjaran?.nama ?? '-' }}</template>
-        <template #cell-semester="{ item }">{{ item.semester ?? '-' }}</template>
-        <template #cell-kelompokMataKuliah="{ item }">{{ item.kelompokMataKuliah ?? '-' }}</template>
-        <template #cell-jenisMataKuliah="{ item }">
-          {{ item.jenisMataKuliah ? JENIS_MATA_KULIAH_LABELS[item.jenisMataKuliah] : '-' }}
+        <template #cell-nama="{ item }">
+          <button type="button" class="font-medium text-primary hover:underline text-left" @click="bukaMataKuliah(item)">{{ item.nama }}</button>
         </template>
-        <template #cell-mataKuliahMinat="{ item }">{{ item.mataKuliahMinat ?? '-' }}</template>
+        <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
+        <template #cell-tahunKurikulum="{ item }">{{ item.tahunKurikulum ?? '-' }}</template>
+        <template #cell-efektif="{ item }">
+          <span class="whitespace-nowrap">
+            {{ item.tanggalMulaiEfektif ? formatDate(item.tanggalMulaiEfektif) : '-' }} – {{ item.tanggalAkhirEfektif ? formatDate(item.tanggalAkhirEfektif) : 'sekarang' }}
+          </span>
+        </template>
+        <template #cell-jumlahObe="{ item }">{{ item.jumlahObe ?? 0 }}</template>
+        <template #cell-jumlahNonObe="{ item }">{{ item.jumlahNonObe ?? 0 }}</template>
+        <template #cell-jumlahMataKuliah="{ item }">{{ item.jumlahMataKuliah ?? 0 }}</template>
+        <template #cell-totalSks="{ item }">{{ item.totalSks ?? 0 }}</template>
+        <template #cell-isActive="{ item }">
+          <StatusBadge :label="item.isActive ? 'Aktif' : 'Nonaktif'" :variant="item.isActive ? 'success' : 'neutral'" />
+        </template>
+        <template #cell-mk="{ item }">
+          <AppButton variant="secondary" icon="menu_book" @click="bukaMataKuliah(item)">Mata Kuliah</AppButton>
+        </template>
         <template #actions="{ item }">
           <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
         </template>
       </DataTable>
-
       <Pagination v-model="page" :meta="meta" />
     </section>
 
-    <Modal
-      :model-value="isFormOpen"
-      :title="editingItem ? 'Ubah Kurikulum' : 'Form Input Data Master Kurikulum'"
-      size="lg"
-      @update:model-value="closeForm"
-    >
+    <Modal :model-value="isFormOpen" :title="editingItem ? 'Ubah Kurikulum' : 'Tambah Kurikulum'" size="md" @update:model-value="closeForm">
       <form class="space-y-4" @submit.prevent="handleSubmit">
-        <div v-if="formError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
-          {{ formError }}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SelectInput v-model="form.tahunAjaranId" label="Tahun Kurikulum" placeholder="-- Pilih Tahun --" :options="tahunAjaranOptions" />
-          <SelectInput v-model="form.semester" label="Semester" placeholder="-- Pilih Semester --" :options="SEMESTER_OPTIONS" />
-          <SelectInput v-model="form.jurusanId" label="Prodi" placeholder="-- Pilih Prodi --" :options="jurusanOptions" />
-        </div>
-
-        <TextInput v-model="form.kode" label="Kode Matakuliah" required :error="errors.kode" />
-        <TextareaInput v-model="form.mataKuliah" label="Nama Matakuliah" required :error="errors.mataKuliah" />
-        <TextareaInput v-model="form.mataKuliahEn" label="Nama Matakuliah English" />
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SelectInput
-            v-model="form.kelompokMataKuliah"
-            label="Kelompok Matakuliah"
-            placeholder="-- Pilih Kelompok --"
-            :options="kelompokMataKuliahOptions"
-          />
-          <SelectInput
-            v-model="form.kelompokKurikulum"
-            label="Kelompok Kurikulum"
-            placeholder="-- Status --"
-            :options="kelompokKurikulumOptions"
-          />
-          <SelectInput
-            v-model="form.jenisMataKuliah"
-            label="Jenis Matakuliah"
-            placeholder="-- Pilih Jenis --"
-            :options="jenisMataKuliahOptions"
-          />
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <SelectInput v-model="form.sksTeori" label="SKS Teori" :options="SKS_OPTIONS" />
-          <SelectInput v-model="form.sksPraktek" label="SKS Praktek" :options="SKS_OPTIONS" />
-          <SelectInput v-model="form.sksLab" label="SKS Lab" :options="SKS_OPTIONS" />
-          <SelectInput v-model="form.sksSimulasi" label="SKS Simulasi" :options="SKS_OPTIONS" />
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <SelectInput
-            v-model="form.kelompokKompetensi"
-            label="Kelompok Kompetensi"
-            placeholder="-- Status --"
-            :options="kelompokKompetensiOptions"
-          />
-          <SelectInput
-            v-model="form.kompIlmuKomputer"
-            label="Komp. Ilmu Komputer"
-            placeholder="-- Pilih Jenis --"
-            :options="kompIlmuKomputerOptions"
-          />
-          <SelectInput
-            v-model="form.mataKuliahMinat"
-            label="Matakuliah Minat"
-            placeholder="-- Pilih Minat --"
-            :options="mataKuliahMinatOptions"
-          />
-        </div>
-
-        <TextInput v-model="form.muatanMataKuliah" label="Muatan Matakuliah" placeholder="Remark..." />
-
+        <div v-if="formError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">{{ formError }}</div>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="form.metodePembelajaran" label="Metode Pembelajaran" placeholder="mis. Ceramah, Diskusi, Praktikum" />
-          <TextInput v-model="form.idMatkul" label="Id Matkul" />
+          <SelectInput
+            v-model="form.jurusanId"
+            label="Prodi"
+            required
+            placeholder="-- Pilih Prodi --"
+            :disabled="isProdiScoped"
+            :options="jurusanOptions"
+            :error="errors.jurusanId"
+          />
+          <TextInput v-model="form.tahunKurikulum" label="Tahun Kurikulum" required placeholder="mis. 2026" inputmode="numeric" maxlength="4" :error="errors.tahunKurikulum" />
         </div>
+        <TextInput v-model="form.nama" label="Nama Kurikulum" placeholder="Kosongkan → otomatis &quot;Kurikulum <tahun> <prodi>&quot;" />
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <DateInput v-model="form.tanggalMulaiEfektif" label="Tgl Mulai Efektif" />
           <DateInput v-model="form.tanggalAkhirEfektif" label="Tgl Akhir Efektif" />
         </div>
+        <TextareaInput v-model="form.keterangan" label="Keterangan" :rows="2" />
+        <CheckboxToggle v-model="form.isActive" label="Aktif" description="Kurikulum nonaktif tetap tersimpan beserta mata kuliahnya." />
       </form>
       <template #footer>
         <AppButton variant="secondary" @click="closeForm">Batal</AppButton>
@@ -437,7 +289,7 @@ const handleSubmit = async () => {
     <ConfirmDialog
       :open="!!deleteTarget"
       title="Hapus Kurikulum"
-      :message="`Yakin ingin menghapus kurikulum ${deleteTarget?.mataKuliah ?? ''}?`"
+      :message="`Hapus ${deleteTarget?.nama ?? ''}? Kurikulum hanya bisa dihapus bila sudah tidak memiliki mata kuliah.`"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="cancelDelete"

@@ -7,7 +7,7 @@ import { useMenuStore } from './stores/menu';
 import { usePesertaAuthStore } from './stores/pesertaAuth';
 import { useDosenAuthStore } from './stores/dosenAuth';
 import { useMahasiswaAuthStore } from './stores/mahasiswaAuth';
-import { registerUnauthorizedHandler } from './api/http';
+import { registerUnauthorizedHandler, STAFF_TOKEN_KEY } from './api/http';
 import { registerPesertaUnauthorizedHandler } from './api/pesertaHttp';
 import { registerDosenUnauthorizedHandler } from './api/dosenHttp';
 import { registerMahasiswaUnauthorizedHandler } from './api/mahasiswaHttp';
@@ -49,6 +49,18 @@ async function bootstrap() {
     mahasiswaAuthStore.logout();
     if (router.currentRoute.value.name !== 'mahasiswa-login') {
       router.push({ name: 'mahasiswa-login' });
+    }
+  });
+
+  // Sesi staff dipakai bersama semua tab (localStorage). Bila tab lain login akun/modul lain atau
+  // logout, tab ini ikut menyesuaikan supaya menu & hak akses akun lama tidak "nyangkut".
+  window.addEventListener('storage', (event) => {
+    if (event.key !== STAFF_TOKEN_KEY || event.oldValue === event.newValue || !authStore.user) return;
+    if (!event.newValue) {
+      authStore.logout();
+      router.push({ name: 'login' });
+    } else {
+      window.location.reload();
     }
   });
 

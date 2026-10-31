@@ -4,14 +4,19 @@ import { useRouter } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
+import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
+import { usePermission } from '@/composables/usePermission';
+import { MENU } from '@/constants/menuCodes';
 import { nilaiMahasiswaApi } from '@/api/nilaiMahasiswa';
 import { extractErrorMessage } from '@/api/http';
 import type { NilaiMahasiswaMahasiswa } from '@/types/entities';
 import type { PagingMeta } from '@/types/common';
 
 const router = useRouter();
+const { canCreate } = usePermission(MENU.NILAI_MONITORING_MANAGEMENT);
 
 const keyword = ref('');
 const appliedKeyword = ref('');
@@ -19,6 +24,7 @@ const appliedKeyword = ref('');
 const items = ref<NilaiMahasiswaMahasiswa[]>([]);
 const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const page = ref(1);
+const pageSize = ref(10);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const searched = ref(false);
@@ -27,6 +33,7 @@ const columns: DataTableColumn[] = [
   { key: 'nim', label: 'NIM' },
   { key: 'namaLengkap', label: 'Nama' },
   { key: 'kelas', label: 'Kelas' },
+  { key: 'angkatan', label: 'Angkatan', align: 'center' },
   { key: 'detail', label: 'Detail', align: 'center' },
 ];
 
@@ -36,7 +43,7 @@ const fetchItems = async () => {
   try {
     const result = await nilaiMahasiswaApi.searchMahasiswa({
       page: page.value,
-      limit: 10,
+      limit: pageSize.value,
       search: appliedKeyword.value || undefined,
     });
     items.value = result.data;
@@ -60,11 +67,27 @@ const openDetail = (id: number) => {
 };
 
 watch(page, fetchItems);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
 </script>
 
 <template>
   <div>
-    <PageHeader title="Master Monitoring Nilai" subtitle="Pantau nilai akhir mahasiswa per mata kuliah." />
+    <PageHeader title="Master Monitoring Nilai" subtitle="Pantau nilai akhir mahasiswa per mata kuliah.">
+      <template #actions>
+        <!-- Import format "Nilai" PDDikti Feeder: Semester 20251 = 2025/2026 Ganjil, 20252 = Genap. -->
+        <ImportExportButtons
+          :import-fn="nilaiMahasiswaApi.importExcel"
+          :template-fn="nilaiMahasiswaApi.importTemplate"
+          :can-import="canCreate"
+          filename="nilai.xlsx"
+          template-filename="template-import-nilai.xlsx"
+          @imported="appliedKeyword && handlePeriksa()"
+        />
+      </template>
+    </PageHeader>
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 bg-surface-bright">
@@ -79,6 +102,10 @@ watch(page, fetchItems);
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
 
       <DataTable
         :columns="columns"

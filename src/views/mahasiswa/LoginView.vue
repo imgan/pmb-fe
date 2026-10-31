@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PasswordInput from '@/components/ui/PasswordInput.vue';
 import { ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMahasiswaAuthStore } from '@/stores/mahasiswaAuth';
@@ -65,13 +66,7 @@ const handleSubmit = async () => {
 
         <label class="block">
           <span class="block font-medium text-label-md text-on-surface mb-2">Password</span>
-          <input
-            v-model="password"
-            type="password"
-            required
-            autocomplete="current-password"
-            class="w-full px-3 py-2 border border-outline-variant rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
-          />
+          <PasswordInput v-model="password" required autocomplete="current-password" />
         </label>
 
         <button

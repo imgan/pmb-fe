@@ -5,6 +5,10 @@ export interface KeringananPayload {
   nim: string;
   tanggal: string;
   jumlahBayar: number;
+  berlakuKrs: boolean;
+  berlakuUts: boolean;
+  berlakuUas: boolean;
+  sampaiTanggal: string | null;
   alasan?: string | null;
   status?: StatusKeringanan;
 }

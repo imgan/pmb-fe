@@ -12,6 +12,7 @@ export interface KampusPayload {
   facebookUrl?: string | null;
   instagramUrl?: string | null;
   youtubeUrl?: string | null;
+  tiktokUrl?: string | null;
   logoUrl?: string | null;
   faviconUrl?: string | null;
   websiteTitle?: string | null;

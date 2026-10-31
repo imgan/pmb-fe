@@ -10,8 +10,7 @@ import Modal from '@/components/ui/Modal.vue';
 import { mahasiswaSuratKeteranganApi, type CreateSuratRequestPayload } from '@/api/mahasiswaPortal';
 import { extractErrorMessage } from '@/api/http';
 import { formatDate } from '@/utils/format';
-import { openBlob } from '@/utils/download';
-import { toastSuccess, toastError } from '@/utils/swal';
+import { toastSuccess } from '@/utils/swal';
 import type { JenisSurat, StatusSuratKeterangan, SuratKeterangan } from '@/types/entities';
 
 const JENIS_SURAT_OPTIONS: { value: JenisSurat; label: string }[] = [
@@ -21,10 +20,16 @@ const JENIS_SURAT_OPTIONS: { value: JenisSurat; label: string }[] = [
   { value: 'KKP', label: 'Surat Kuliah Kerja Praktek (KKP)' },
   { value: 'REKOMENDASI_KAMPUS_MERDEKA', label: 'Surat Rekomendasi Kampus Merdeka' },
   { value: 'UJIAN_UAS', label: 'Surat Keterangan Mengikuti Ujian UAS' },
+  { value: 'DAFTAR_SIDANG_TA', label: 'Formulir Pendaftaran Sidang Tugas Akhir' },
+  { value: 'REKAP_NILAI_SIDANG', label: 'Rekapitulasi Nilai Sidang Mahasiswa' },
+  { value: 'JURNAL_KONSULTASI_TA', label: 'Jurnal Konsultasi Tugas Akhir' },
 ];
 const INSTANSI_JENIS: JenisSurat[] = ['OBSERVASI', 'KKP'];
 const KAMPUS_MERDEKA_JENIS: JenisSurat = 'REKOMENDASI_KAMPUS_MERDEKA';
 const UJIAN_UAS_JENIS: JenisSurat = 'UJIAN_UAS';
+// Formulir Sidang TA memakai kolom namaInstansi/alamatInstansi untuk Lokasi & Alamat Penelitian.
+const SIDANG_TA_JENIS: JenisSurat = 'DAFTAR_SIDANG_TA';
+const REKAP_SIDANG_JENIS: JenisSurat = 'REKAP_NILAI_SIDANG';
 const jenisSuratLabel = (jenis: JenisSurat) => JENIS_SURAT_OPTIONS.find((o) => o.value === jenis)?.label ?? jenis;
 
 const STATUS_LABELS: Record<StatusSuratKeterangan, string> = {
@@ -130,20 +135,6 @@ const handleSubmit = async () => {
     submitting.value = false;
   }
 };
-
-// ---- Cetak PDF ----
-const printingId = ref<number | null>(null);
-const handleCetakPdf = async (item: SuratKeterangan) => {
-  printingId.value = item.id;
-  try {
-    const blob = await mahasiswaSuratKeteranganApi.cetakPdf(item.id);
-    openBlob(blob);
-  } catch (err) {
-    toastError(extractErrorMessage(err, 'Gagal membuka dokumen'));
-  } finally {
-    if (printingId.value === item.id) printingId.value = null;
-  }
-};
 </script>
 
 <template>
@@ -176,13 +167,6 @@ const handleCetakPdf = async (item: SuratKeterangan) => {
           </div>
           <div class="flex items-center gap-3">
             <StatusBadge :label="STATUS_LABELS[item.status]" :variant="STATUS_VARIANT[item.status]" />
-            <AppButton
-              v-if="item.status === 'DISETUJUI'"
-              :disabled="printingId === item.id"
-              @click="handleCetakPdf(item)"
-            >
-              {{ printingId === item.id ? 'Membuka...' : 'Cetak PDF' }}
-            </AppButton>
           </div>
         </div>
 
@@ -212,6 +196,23 @@ const handleCetakPdf = async (item: SuratKeterangan) => {
           <TextInput v-model="form.namaInstansi" label="Nama Instansi / Perusahaan Tujuan" placeholder="mis. Klinik Zam-Zam Medika 1" />
           <TextareaInput v-model="form.alamatInstansi" label="Alamat Instansi" :rows="2" />
         </template>
+
+        <template v-if="form.jenisSurat === SIDANG_TA_JENIS">
+          <TextInput v-model="form.namaInstansi" label="Lokasi Penelitian" placeholder="mis. RS Mitra Keluarga Bekasi" />
+          <TextareaInput v-model="form.alamatInstansi" label="Alamat Penelitian" :rows="2" />
+          <p class="text-label-sm text-on-surface-variant">
+            Dosen pembimbing diambil dari data Pendaftar Sidang di Prodi; No. HP dari biodata mahasiswa.
+          </p>
+        </template>
+
+        <p v-if="form.jenisSurat === 'JURNAL_KONSULTASI_TA'" class="text-label-sm text-on-surface-variant">
+          Sampul + lembar Daftar Konsultasi per pembimbing. Judul, TA &amp; pembimbing diambil dari data Pendaftar Sidang di
+          Prodi; tabel konsultasi dicetak kosong untuk diisi &amp; diparaf pembimbing tiap pertemuan.
+        </p>
+        <p v-if="form.jenisSurat === REKAP_SIDANG_JENIS" class="text-label-sm text-on-surface-variant">
+          Judul, TA, dosen pembimbing &amp; penguji diambil dari data Pendaftar/Jadwal Sidang di Prodi. Nilai terisi
+          otomatis dari input dosen di portal dosen (menu Nilai Sidang); yang belum diisi dicetak kosong.
+        </p>
 
         <template v-if="form.jenisSurat === KAMPUS_MERDEKA_JENIS">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

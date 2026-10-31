@@ -4,12 +4,13 @@ import PublicHeader from '@/components/public/PublicHeader.vue';
 import PublicFooter from '@/components/public/PublicFooter.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import { publicApi } from '@/api/public';
 import { useCrudPage } from '@/composables/useCrudPage';
 import type { CalonMahasiswa, CalonMahasiswaStats } from '@/types/entities';
 
-const { items, meta, page, search, loading, error, fetchItems } = useCrudPage<CalonMahasiswa>({
+const { items, meta, page, limit, search, loading, error, fetchItems } = useCrudPage<CalonMahasiswa>({
   fetchList: publicApi.calonMahasiswa,
   remove: () => Promise.resolve(),
 });
@@ -123,6 +124,10 @@ const shareCandidate = (item: CalonMahasiswa) => {
         </div>
 
         <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+        <div class="px-4 py-3 border-b border-outline-variant">
+          <PageSizeSelect v-model="limit" />
+        </div>
 
         <DataTable :columns="columns" :items="items" :loading="loading" empty-message="Belum ada data calon mahasiswa">
           <template #cell-skemaPembiayaan="{ item }">

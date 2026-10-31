@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import RowActions from '@/components/ui/RowActions.vue';
@@ -20,7 +21,9 @@ import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
 
-const { canCreate, canUpdate, canDelete } = usePermission(MENU.JURUSAN_MANAGEMENT);
+// Halaman ini juga dipakai Modul Admin → Master, dengan kode menu Admin sebagai sumber hak akses.
+const props = withDefaults(defineProps<{ menuCode?: string }>(), { menuCode: MENU.JURUSAN_MANAGEMENT });
+const { canCreate, canUpdate, canDelete } = usePermission(props.menuCode);
 
 const golonganKelasFilter = ref<number | ''>('');
 const golonganKelasOptions = ref<{ value: number; label: string }[]>([]);
@@ -34,6 +37,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -74,6 +78,7 @@ const form = reactive({
   golonganKelasId: '' as number | '',
   namaJurusan: '',
   kodeProdi: '',
+  singkatan: '',
   foto: null as string | null,
   prospekKarir: '',
   jenjangPendidikan: '',
@@ -94,6 +99,7 @@ watch(
     form.golonganKelasId = editing?.golonganKelasId ?? '';
     form.namaJurusan = editing?.namaJurusan ?? '';
     form.kodeProdi = editing?.kodeProdi ?? '';
+    form.singkatan = editing?.singkatan ?? '';
     form.foto = editing?.foto ?? null;
     form.prospekKarir = editing?.prospekKarir ?? '';
     form.jenjangPendidikan = editing?.jenjangPendidikan ?? '';
@@ -117,6 +123,7 @@ const handleSubmit = async () => {
       golonganKelasId: Number(form.golonganKelasId),
       namaJurusan: form.namaJurusan.trim(),
       kodeProdi: form.kodeProdi.trim() || null,
+      singkatan: form.singkatan.trim().toUpperCase() || null,
       foto: form.foto,
       prospekKarir: form.prospekKarir.trim() || null,
       jenjangPendidikan: form.jenjangPendidikan.trim() || null,
@@ -170,6 +177,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable :columns="columns" :items="items" :loading="loading" :sort-key="sortBy" :sort-dir="sortDir" @sort="handleSort">
         <template #cell-golonganKelas="{ item }">{{ item.golonganKelas?.namaKelas ?? '-' }}</template>
         <template #actions="{ item }">
@@ -194,6 +205,12 @@ const handleSubmit = async () => {
         />
         <TextInput v-model="form.namaJurusan" label="Nama Jurusan" required :error="errors.namaJurusan" />
         <TextInput v-model="form.kodeProdi" label="Kode Prodi" placeholder="mis. 57201" />
+        <TextInput
+          v-model="form.singkatan"
+          label="Singkatan Prodi"
+          placeholder="mis. TI"
+          hint="2 huruf untuk nama kelas mahasiswa (Generate NIM), mis. TI → TI1AP"
+        />
         <FileInput
           v-model="form.foto"
           label="Foto Program Studi"

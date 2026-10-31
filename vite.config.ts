@@ -12,5 +12,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    watch: {
+      // Arsip zip & hasil build di root project tidak perlu dipantau; file zip yang sedang
+      // ditulis/dikunci (EBUSY) membuat dev server crash di Windows.
+      ignored: ['**/*.zip', '**/dist/**'],
+    },
   },
 });

@@ -12,6 +12,8 @@ import type {
 
 export interface LaporanKeuanganQuery {
   tahunAjaranId?: number;
+  /** Filter prodi (kode prodi, mencakup kelas Reguler & Karyawan). */
+  kodeProdi?: string;
 }
 
 export interface LaporanSertifikasiQuery {
@@ -32,6 +34,11 @@ export const laporanKeuanganApi = {
       params: query,
     });
     return data.data;
+  },
+  /** Bukti bebas tunggakan satu mahasiswa (PDF, lampiran sidang). */
+  async bebasTunggakanPdf(mahasiswaId: number): Promise<Blob> {
+    const { data } = await http.get(`/keuangan/laporan/bebas-tunggakan/${mahasiswaId}/pdf`, { responseType: 'blob' });
+    return data;
   },
   async uangKuliah(
     query: LaporanKeuanganQuery = {}

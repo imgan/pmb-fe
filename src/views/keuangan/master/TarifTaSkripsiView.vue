@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -15,6 +16,8 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { tarifTaSkripsiApi, type TarifTaSkripsiPayload } from '@/api/tarifTaSkripsi';
 import { jurusanApi } from '@/api/jurusan';
+import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 import { extractErrorMessage } from '@/api/http';
 import { formatCurrencyIdr, formatCurrencyInputIdr, parseRupiahInput } from '@/utils/format';
 import { useCrudPage } from '@/composables/useCrudPage';
@@ -25,15 +28,23 @@ import type { TarifTaSkripsi } from '@/types/entities';
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.KEUANGAN_TARIF_TA_SKRIPSI_MANAGEMENT);
 
 const jurusanOptions = ref<{ value: number; label: string }[]>([]);
+const tahunAjaranOptions = ref<{ value: number; label: string }[]>([]);
+const tahunAjaranAktifId = ref<number | ''>('');
 onMounted(async () => {
-  const result = await jurusanApi.list({ limit: 200 });
-  jurusanOptions.value = result.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
+  const [jurusanResult, tahunAjaranResult] = await Promise.all([
+    jurusanApi.list({ limit: 200 }),
+    tahunAjaranApi.list({ limit: 100 }),
+  ]);
+  jurusanOptions.value = jurusanResult.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
+  tahunAjaranOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
+  tahunAjaranAktifId.value = tahunAjaranResult.data.find((t) => t.isActive)?.id ?? '';
 });
 
 const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -61,6 +72,7 @@ fetchItems();
 
 const columns: DataTableColumn[] = [
   { key: 'no', label: 'No', align: 'center' },
+  { key: 'tahunAjaran', label: 'Tahun Akademik', sortable: true },
   { key: 'periode', label: 'Periode', sortable: true },
   { key: 'biayaPendaftaran', label: 'Biaya Pendaftaran', align: 'right', sortable: true },
   { key: 'jurusan', label: 'Prodi', sortable: true },
@@ -73,6 +85,7 @@ const rows = computed(() =>
 );
 
 interface FormState {
+  tahunAjaranId: number | '';
   periode: number | '';
   jurusanId: number | '';
   biayaPendaftaran: number | null;
@@ -81,6 +94,7 @@ interface FormState {
 }
 
 const emptyForm = (): FormState => ({
+  tahunAjaranId: tahunAjaranAktifId.value,
   periode: '',
   jurusanId: '',
   biayaPendaftaran: null,
@@ -101,6 +115,7 @@ watch(
     formError.value = null;
     Object.assign(form, emptyForm());
     if (editing) {
+      form.tahunAjaranId = editing.tahunAjaranId ?? '';
       form.periode = editing.periode;
       form.jurusanId = editing.jurusanId;
       form.biayaPendaftaran = editing.biayaPendaftaran;
@@ -117,6 +132,7 @@ const onBiayaInput = (field: 'biayaPendaftaran' | 'biayaPerpanjangan') => (event
 
 const handleSubmit = async () => {
   Object.keys(errors).forEach((k) => delete errors[k]);
+  if (!form.tahunAjaranId) errors.tahunAjaranId = 'Tahun akademik wajib dipilih';
   if (!form.periode) errors.periode = 'Periode wajib diisi';
   if (!form.jurusanId) errors.jurusanId = 'Prodi wajib dipilih';
   if (!form.biayaPendaftaran || form.biayaPendaftaran <= 0) errors.biayaPendaftaran = 'Biaya pendaftaran wajib diisi';
@@ -126,6 +142,7 @@ const handleSubmit = async () => {
   formError.value = null;
   try {
     const payload: TarifTaSkripsiPayload = {
+      tahunAjaranId: Number(form.tahunAjaranId),
       periode: Number(form.periode),
       jurusanId: Number(form.jurusanId),
       biayaPendaftaran: Number(form.biayaPendaftaran),
@@ -174,6 +191,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="rows"
@@ -183,6 +204,7 @@ const handleSubmit = async () => {
         :sort-dir="sortDir"
         @sort="handleSort"
       >
+        <template #cell-tahunAjaran="{ item }">{{ item.tahunAjaran ? formatTahunAjaran(item.tahunAjaran) : '-' }}</template>
         <template #cell-biayaPendaftaran="{ item }">{{ formatCurrencyIdr(item.biayaPendaftaran) }}</template>
         <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
         <template #cell-biayaPerpanjangan="{ item }">{{ formatCurrencyIdr(item.biayaPerpanjangan) }}</template>
@@ -207,6 +229,14 @@ const handleSubmit = async () => {
         <div v-if="formError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
           {{ formError }}
         </div>
+        <SelectInput
+          v-model="form.tahunAjaranId"
+          label="Tahun Akademik"
+          required
+          placeholder="Pilih tahun akademik..."
+          :options="tahunAjaranOptions"
+          :error="errors.tahunAjaranId"
+        />
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model.number="form.periode" label="Periode" type="number" required :error="errors.periode" />
           <SelectInput
@@ -232,7 +262,7 @@ const handleSubmit = async () => {
                 ? 'border-error focus:border-error focus:ring-1 focus:ring-error'
                 : 'border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary'
             "
-            @input="onBiayaInput('biayaPendaftaran')"
+            @input="onBiayaInput('biayaPendaftaran')($event)"
           />
           <p v-if="errors.biayaPendaftaran" class="mt-1 text-label-sm text-error">{{ errors.biayaPendaftaran }}</p>
         </label>
@@ -243,7 +273,7 @@ const handleSubmit = async () => {
             inputmode="numeric"
             placeholder="0"
             class="w-full px-3 py-2 border border-outline-variant rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary"
-            @input="onBiayaInput('biayaPerpanjangan')"
+            @input="onBiayaInput('biayaPerpanjangan')($event)"
           />
         </label>
         <CheckboxToggle v-model="form.isActive" label="Status Aktif" />

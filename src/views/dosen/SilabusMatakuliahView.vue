@@ -36,7 +36,7 @@ onMounted(fetchData);
 
 <template>
   <div>
-    <PageHeader title="Silabus Matakuliah" subtitle="Dosen / Harian / Silabus Matakuliah" />
+    <PageHeader title="Silabus Matakuliah" subtitle="Dosen / Silabus" />
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import AppButton from '@/components/ui/AppButton.vue';
@@ -25,6 +26,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -117,6 +119,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable :columns="columns" :items="items" :loading="loading" :sort-key="sortBy" :sort-dir="sortDir" @sort="handleSort">
         <template #cell-description="{ item }">{{ item.description || '-' }}</template>
         <template #cell-status="{ item }">
@@ -127,7 +133,7 @@ const handleSubmit = async () => {
             type="button"
             class="text-on-surface-variant hover:text-primary transition-colors"
             title="Hak Akses"
-            @click="router.push(`/admin/roles/${item.id}/permissions`)"
+            @click="router.push(`/modul-admin/roles/${item.id}/permissions`)"
           >
             <span class="material-symbols-outlined" style="font-size: 20px">key</span>
           </button>

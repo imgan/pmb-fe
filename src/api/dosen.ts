@@ -1,27 +1,35 @@
 import { http } from './http';
 import { createCrudApi } from './crudFactory';
 import type { ApiResponse, ImportResult } from '@/types/common';
-import type { Dosen, DosenStatItem } from '@/types/entities';
+import type { Dosen, DosenProdiStatItem, DosenStatItem } from '@/types/entities';
 
 export interface DosenPayload {
   nik?: string | null;
   nidn: string;
+  nuptk?: string | null;
   namaLengkap: string;
+  gelar?: string | null;
+  jurusanId?: number | null;
   tempatLahir?: string | null;
   tanggalLahir?: string | null;
   jenisKelamin?: 'L' | 'P' | null;
   pendidikanAkhir?: string | null;
   agama?: string | null;
   telpHp?: string | null;
+  noWhatsapp?: string | null;
+  jabatanFungsional?: string | null;
+  kum?: number | null;
   email?: string | null;
   alamat?: string | null;
   statusDosen?: 'TETAP' | 'TIDAK_TETAP' | null;
+  jenisDosen?: 'INTERNAL' | 'EKSTERNAL';
+  keterangan?: string | null;
   status?: string | null;
   waktu?: 'M' | 'P' | null;
   tmt?: string | null;
   karyawanInternal?: boolean;
   infaq?: boolean;
-  kelompokFakultas: 'FKF' | 'FTID' | 'FIP' | 'NON_BASE';
+  kelompokFakultas?: 'FKF' | 'FTID' | 'FIP' | 'NON_BASE';
   isActive?: boolean;
 }
 
@@ -32,6 +40,10 @@ export const dosenApi = {
 
   async stats(): Promise<DosenStatItem[]> {
     const { data } = await http.get<ApiResponse<DosenStatItem[]>>('/dosen/stats');
+    return data.data;
+  },
+  async statsByProdi(): Promise<DosenProdiStatItem[]> {
+    const { data } = await http.get<ApiResponse<DosenProdiStatItem[]>>('/dosen/stats', { params: { groupBy: 'prodi' } });
     return data.data;
   },
   async exportExcel(): Promise<Blob> {

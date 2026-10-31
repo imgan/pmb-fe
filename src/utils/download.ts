@@ -32,3 +32,14 @@ export const dataUrlToBlob = (dataUrl: string): Blob => {
   }
   return new Blob([bytes], { type: mime });
 };
+
+/** Ambil nama file dari header Content-Disposition (`filename="..."`); fallback bila tidak ada. */
+export const filenameFromDisposition = (disposition: string | undefined | null, fallback: string): string => {
+  const match = disposition?.match(/filename="?([^";]+)"?/i);
+  return match?.[1] ?? fallback;
+};
+
+export interface NamedBlob {
+  blob: Blob;
+  filename: string;
+}

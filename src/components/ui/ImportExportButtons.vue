@@ -9,7 +9,8 @@ import { toastSuccess, toastError } from '@/utils/swal';
 import type { ImportResult } from '@/types/common';
 
 const props = defineProps<{
-  exportFn: () => Promise<Blob>;
+  /** Opsional: tanpa exportFn tombol Export tidak ditampilkan. */
+  exportFn?: () => Promise<Blob>;
   importFn: (file: string) => Promise<ImportResult>;
   templateFn: () => Promise<Blob>;
   filename: string;
@@ -23,6 +24,7 @@ const exporting = ref(false);
 const handleExport = async () => {
   exporting.value = true;
   try {
+    if (!props.exportFn) return;
     const blob = await props.exportFn();
     downloadBlob(blob, props.filename);
   } catch (err) {
@@ -76,7 +78,8 @@ const handleImport = async () => {
       toastSuccess(`${result.value.successCount} baris berhasil diimport`);
       emit('imported');
     }
-    if (result.value.errorCount === 0) {
+    // Tetap buka bila ada error/peringatan supaya bisa dibaca.
+    if (result.value.errorCount === 0 && !result.value.warnings?.length) {
       closeImport();
     }
   } catch (err) {
@@ -89,7 +92,7 @@ const handleImport = async () => {
 
 <template>
   <div class="flex items-center gap-2">
-    <AppButton variant="secondary" icon="download" :disabled="exporting" @click="handleExport">
+    <AppButton v-if="exportFn" variant="secondary" icon="download" :disabled="exporting" @click="handleExport">
       {{ exporting ? 'Mengekspor...' : 'Export Excel' }}
     </AppButton>
     <AppButton v-if="canImport !== false" variant="secondary" icon="upload" @click="openImport">Import Excel</AppButton>
@@ -134,6 +137,14 @@ const handleImport = async () => {
                 </tr>
               </tbody>
             </table>
+          </div>
+          <div v-if="result.warnings?.length" class="border border-outline-variant rounded-md max-h-48 overflow-y-auto">
+            <p class="px-2 pt-2 text-label-sm font-semibold text-on-surface-variant">Catatan ({{ result.warnings.length }})</p>
+            <ul class="divide-y divide-outline-variant text-label-sm">
+              <li v-for="(w, i) in result.warnings" :key="i" class="p-2 text-on-surface">
+                <span v-if="w.row" class="text-on-surface-variant">Baris {{ w.row }}: </span>{{ w.message }}
+              </li>
+            </ul>
           </div>
         </div>
       </div>

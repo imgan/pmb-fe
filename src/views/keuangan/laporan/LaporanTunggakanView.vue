@@ -9,6 +9,7 @@ import { extractErrorMessage } from '@/api/http';
 import { formatCurrencyIdr } from '@/utils/format';
 import { downloadBlob } from '@/utils/download';
 import type { LaporanTunggakanJurusanRow } from '@/types/entities';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 interface Option {
   value: string | number;
@@ -34,11 +35,11 @@ const exporting = ref(false);
 
 onMounted(async () => {
   try {
-    const { data } = await tahunAjaranApi.list({ limit: 200 });
+    const { data } = await tahunAjaranApi.list({ limit: 200, isActive: true });
     tahunAjaranOptions.value = data
       .slice()
       .sort((a, b) => b.tahunMulai - a.tahunMulai)
-      .map((ta) => ({ value: ta.id, label: `${ta.nama} - ${ta.jenisSemester}` }));
+      .map((ta) => ({ value: ta.id, label: `${formatTahunAjaran(ta)}` }));
     const active = data.find((ta) => ta.isActive);
     if (active) selectedTahunAjaran.value = active.id;
   } catch {

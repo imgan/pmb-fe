@@ -3,16 +3,26 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import StepProgress, { type ProgressStep } from '@/components/ui/StepProgress.vue';
+import PesertaBiodataPanel from '@/components/peserta/PesertaBiodataPanel.vue';
+import PesertaBiodataFields from '@/components/peserta/PesertaBiodataFields.vue';
+import PendidikanModal from '@/components/peserta/PendidikanModal.vue';
+import SumberInformasiModal from '@/components/peserta/SumberInformasiModal.vue';
+import DataPmbModal from '@/components/peserta/DataPmbModal.vue';
+import DokumenPesertaModal from '@/components/peserta/DokumenPesertaModal.vue';
+import { biodataBelumDiisi, biodataKosong, biodataPayload, isiBiodataForm, validasiBiodata } from '@/components/peserta/biodataForm';
 import { calonMahasiswaApi } from '@/api/calonMahasiswa';
+import { tahunPmbApi } from '@/api/tahunModul';
 import { gelombangApi } from '@/api/gelombang';
 import { pesertaApi } from '@/api/peserta';
 import { golonganKelasApi } from '@/api/golonganKelas';
@@ -21,14 +31,43 @@ import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
-import { formatDateTime } from '@/utils/format';
-import { toastSuccess, toastError } from '@/utils/swal';
-import type { CalonMahasiswa, CalonMahasiswaStats, GolonganKelas, Jurusan, Peserta } from '@/types/entities';
+import { formatDate, formatDateTime } from '@/utils/format';
+import { toastSuccess, toastError, confirmAction } from '@/utils/swal';
+import type { CalonMahasiswa, CalonMahasiswaStats, Gelombang, GolonganKelas, Jurusan, Peserta } from '@/types/entities';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.CALON_MAHASISWA_MANAGEMENT);
 
 const gelombangFilter = ref<number | ''>('');
+const tahunFilter = ref<number | ''>('');
+const golonganFilter = ref<number | ''>('');
+const prodiFilter = ref('');
+const tahunOptions = ref<{ value: number; label: string }[]>([]);
 const gelombangOptions = ref<{ value: number; label: string }[]>([]);
+const gelombangList = ref<Gelombang[]>([]);
+/** Gelombang aktif: AKTIF manual, atau OTOMATIS & hari ini di dalam rentang tanggalnya. */
+const gelombangAktif = (g: Gelombang) => {
+  if (g.status === 'AKTIF') return true;
+  if (g.status === 'TIDAK_AKTIF') return false;
+  const hariIni = new Date().toLocaleDateString('sv-SE');
+  return String(g.startDate).slice(0, 10) <= hariIni && hariIni <= String(g.endDate).slice(0, 10);
+};
+// Filter tabel: golongan kelas & jurusan (nama prodi unik; dipersempit ke golongan yang dipilih).
+const golonganFilterOptions = computed(() => golonganKelasList.value.map((g) => ({ value: g.id, label: g.namaKelas })));
+const prodiFilterOptions = computed(() =>
+  [...new Set(jurusanList.value.filter((j) => !golonganFilter.value || j.golonganKelasId === golonganFilter.value).map((j) => j.namaJurusan).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b))
+    .map((n) => ({ value: n, label: n }))
+);
+const onGolonganFilterChange = () => {
+  if (prodiFilter.value && !prodiFilterOptions.value.some((o) => o.value === prodiFilter.value)) prodiFilter.value = '';
+  onFilterChange();
+};
+// Pilihan gelombang di form: hanya yang aktif + periodenya; gelombang tersimpan tetap tampil saat ubah.
+const gelombangFormOptions = computed(() =>
+  gelombangList.value
+    .filter((g) => gelombangAktif(g) || g.id === form.gelombangId)
+    .map((g) => ({ value: g.id, label: `${g.namaGelombang} - ${formatDate(g.startDate)} s.d. ${formatDate(g.endDate)}` }))
+);
 
 const pesertaList = ref<Peserta[]>([]);
 const pesertaOptions = ref<{ value: number; label: string }[]>([]);
@@ -36,6 +75,13 @@ const pesertaById = (id: number | '') => pesertaList.value.find((p) => p.id === 
 
 const golonganKelasList = ref<GolonganKelas[]>([]);
 const jurusanList = ref<Jurusan[]>([]);
+// Pilihan Prodi (combo box) dari master Jurusan — nama prodi unik (tabel jurusan punya varian per golongan kelas).
+// Nilai yang tersimpan tetap teks nama prodi; teks lama yang tidak ada di master tetap ditampilkan saat ubah.
+const prodiOptions = computed(() => {
+  const nama = [...new Set(jurusanList.value.map((j) => j.namaJurusan).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (form.prodi && !nama.includes(form.prodi)) nama.unshift(form.prodi);
+  return nama.map((n) => ({ value: n, label: n }));
+});
 
 const loadPesertaOptions = async () => {
   const pesertaResult = await pesertaApi.list({ limit: 200 });
@@ -50,7 +96,13 @@ onMounted(async () => {
     jurusanApi.list({ limit: 100 }),
     loadPesertaOptions(),
   ]);
+  gelombangList.value = gelombangResult.data;
   gelombangOptions.value = gelombangResult.data.map((g) => ({ value: g.id, label: g.namaGelombang }));
+  // Filter Tahun Ajaran PMB (tahun gelombang pendaftar; Modul Admin › Tahun (PMB)).
+  tahunPmbApi
+    .list({ limit: 100 })
+    .then((r) => (tahunOptions.value = r.data.map((t) => ({ value: t.id, label: `Tahun PMB ${t.nama} ${t.jenisSemester}${t.isActive ? ' (aktif)' : ''}` }))))
+    .catch(() => (tahunOptions.value = []));
   golonganKelasList.value = golonganResult.data;
   jurusanList.value = jurusanResult.data;
 });
@@ -59,6 +111,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -80,7 +133,12 @@ const {
 } = useCrudPage({
   fetchList: calonMahasiswaApi.list,
   remove: calonMahasiswaApi.remove,
-  extraQuery: () => ({ gelombangId: gelombangFilter.value || undefined }),
+  extraQuery: () => ({
+    gelombangId: gelombangFilter.value || undefined,
+    tahunPmbId: tahunFilter.value || undefined,
+    golonganKelasId: golonganFilter.value || undefined,
+    prodi: prodiFilter.value || undefined,
+  }),
 });
 
 fetchItems();
@@ -108,6 +166,7 @@ const loadStats = async () => {
 onMounted(loadStats);
 
 const columns: DataTableColumn[] = [
+  { key: 'aksi', label: '', sortable: false },
   { key: 'nama', label: 'Nama', sortable: true },
   { key: 'asalSekolah', label: 'Asal Sekolah', sortable: true },
   { key: 'prodi', label: 'Prodi', sortable: true },
@@ -157,6 +216,15 @@ const form = reactive({
   statusBeasiswa: '' as '' | 'diusulkan' | 'disetujui' | 'ditolak',
   statusKuliah: 'menunggu' as 'menunggu' | 'diterima' | 'ditolak',
 });
+// Akun peserta: 'baru' = buat akun peserta baru sekaligus dari form ini, 'tautkan' = pilih akun yang sudah ada.
+const MODE_AKUN = [
+  { value: 'baru' as const, label: 'Buat akun peserta baru', icon: 'person_add' },
+  { value: 'tautkan' as const, label: 'Tautkan akun yang sudah ada', icon: 'link' },
+];
+const modeAkun = ref<'baru' | 'tautkan'>('baru');
+const akun = reactive({ namaLengkap: '', email: '', noTelepon: '' });
+const akunBaru = reactive({ golonganKelasId: '' as number | '', jurusanId: '' as number | '' });
+const akunErrors = reactive<Record<string, string>>({});
 const formError = ref<string | null>(null);
 const errors = reactive<Record<string, string>>({});
 const submitting = ref(false);
@@ -180,9 +248,98 @@ watch(
     form.kelengkapanPersyaratan = editing?.kelengkapanPersyaratan ?? false;
     form.statusBeasiswa = editing?.statusBeasiswa ?? '';
     form.statusKuliah = editing?.statusKuliah ?? 'menunggu';
+    // Default: buat akun peserta baru. Baris yang sudah tertaut tetap memakai akunnya (pesertaId terisi → bukan mode baru).
+    modeAkun.value = 'baru';
+    akunBaru.golonganKelasId = '';
+    akunBaru.jurusanId = '';
+    Object.keys(akunErrors).forEach((k) => delete akunErrors[k]);
   },
   { immediate: true }
 );
+
+// ---- Biodata peserta yang ditautkan (diisi/diubah langsung dari form Tambah/Ubah) ----
+const biodataForm = reactive(biodataKosong());
+const biodataErrors = reactive<Record<string, string>>({});
+const biodataPeserta = ref<Peserta | null>(null);
+const biodataLoading = ref(false);
+const biodataTerkunci = ref(true);
+
+watch(
+  () => [isFormOpen.value, form.pesertaId] as const,
+  async ([open, pesertaId]) => {
+    Object.keys(biodataErrors).forEach((k) => delete biodataErrors[k]);
+    biodataPeserta.value = null;
+    isiBiodataForm(biodataForm, null, form.noTelepon);
+    Object.assign(akun, { namaLengkap: form.nama, email: '', noTelepon: form.noTelepon });
+    biodataTerkunci.value = true;
+    if (!open || !pesertaId) return;
+    biodataLoading.value = true;
+    try {
+      const p = await pesertaApi.get(Number(pesertaId));
+      if (form.pesertaId !== pesertaId) return;
+      biodataPeserta.value = p;
+      Object.assign(akun, { namaLengkap: p.namaLengkap, email: p.email, noTelepon: p.noTelepon });
+      isiBiodataForm(biodataForm, p.biodata, p.noTelepon);
+      biodataTerkunci.value = p.biodata?.isLocked ?? true;
+    } catch (err) {
+      toastError(extractErrorMessage(err, 'Gagal memuat biodata peserta'));
+    } finally {
+      biodataLoading.value = false;
+    }
+  }
+);
+
+const sudahTertaut = computed(() => !!editingItem.value?.pesertaId);
+const modeBaru = computed(() => modeAkun.value === 'baru' && !form.pesertaId);
+/** Kolom akun + biodata tampil saat membuat akun baru atau setelah akun peserta tertaut dimuat. */
+const formAkunTampil = computed(() => modeBaru.value || !!biodataPeserta.value);
+const semuaErrorBiodata = computed(() => ({ ...errors, ...akunErrors, ...biodataErrors }));
+/** Kelas perkuliahan akun baru; kelas tanpa prodi di master Jurusan ditandai (prodi-nya tidak bisa dipilih). */
+const kelasAkunBaruOptions = computed(() =>
+  golonganKelasList.value.map((g) => ({
+    value: g.id,
+    label: jurusanList.value.some((j) => j.golonganKelasId === g.id) ? g.namaKelas : `${g.namaKelas} (belum ada prodi)`,
+  }))
+);
+const jurusanAkunBaruOptions = computed(() =>
+  jurusanList.value.filter((j) => j.golonganKelasId === akunBaru.golonganKelasId).map((j) => ({ value: j.id, label: j.namaJurusan }))
+);
+watch(
+  () => akunBaru.golonganKelasId,
+  () => {
+    if (!jurusanAkunBaruOptions.value.some((o) => o.value === akunBaru.jurusanId)) akunBaru.jurusanId = '';
+  }
+);
+// Prodi baris PMB mengikuti program studi akun baru.
+watch(
+  () => akunBaru.jurusanId,
+  (id) => {
+    if (modeBaru.value) form.prodi = jurusanList.value.find((j) => j.id === id)?.namaJurusan ?? '';
+  }
+);
+
+const pilihModeAkun = (mode: 'baru' | 'tautkan') => {
+  modeAkun.value = mode;
+  if (mode === 'baru') form.pesertaId = '';
+};
+
+const validasiAkun = () => {
+  Object.keys(akunErrors).forEach((k) => delete akunErrors[k]);
+  if (!akun.namaLengkap.trim()) akunErrors.namaLengkap = 'Nama lengkap wajib diisi';
+  if (!akun.email.trim()) akunErrors.email = 'Email wajib diisi';
+  if (!akun.noTelepon.trim()) akunErrors.noTelepon = 'No. HP wajib diisi';
+  if (modeBaru.value) {
+    if (!akunBaru.golonganKelasId) akunErrors.golonganKelasId = 'Kelas perkuliahan wajib dipilih';
+    if (!akunBaru.jurusanId) akunErrors.jurusanId = 'Program studi wajib dipilih';
+  }
+  return Object.keys(akunErrors).length === 0;
+};
+
+/** Biodata disimpan bila peserta sudah punya biodata atau admin mulai mengisinya. */
+const perluSimpanBiodata = () =>
+  modeBaru.value
+    ? !biodataBelumDiisi(biodataForm)
+    : !!biodataPeserta.value && (!!biodataPeserta.value.biodata?.nik || !biodataBelumDiisi(biodataForm));
 
 const linkedPeserta = computed(() => pesertaById(form.pesertaId));
 const linkedLulusTesMasuk = computed(() => linkedPeserta.value?.statusUjian === 'lulus');
@@ -191,22 +348,71 @@ const linkedStatusKuliah = computed(() => linkedPeserta.value?.statusKelulusan ?
 const validate = (): boolean => {
   Object.keys(errors).forEach((k) => delete errors[k]);
   if (!form.nama.trim()) errors.nama = 'Nama wajib diisi';
-  if (!form.asalSekolah.trim()) errors.asalSekolah = 'Asal sekolah wajib diisi';
+  // Saat membuat / menautkan akun, asal sekolah diisi lewat popup Data Pendidikan (boleh kosong di sini).
+  if (!formAkunTampil.value && !form.asalSekolah.trim()) errors.asalSekolah = 'Asal sekolah wajib diisi';
   if (!form.prodi.trim()) errors.prodi = 'Prodi wajib diisi';
   return Object.keys(errors).length === 0;
 };
 
+/** Asal sekolah belum diisi (diisi kemudian lewat popup Data Pendidikan) disimpan sebagai '-'. */
+const ASAL_KOSONG = '-';
+const asalSekolahDisimpan = () => form.asalSekolah.trim() || ASAL_KOSONG;
+
 const handleSubmit = async () => {
-  if (!validate()) return;
+  if (formAkunTampil.value) {
+    form.nama = akun.namaLengkap.trim();
+    form.noTelepon = akun.noTelepon.trim();
+  }
+  const simpanBiodata = perluSimpanBiodata();
+  const valid = [
+    validate(),
+    formAkunTampil.value ? validasiAkun() : true,
+    simpanBiodata ? validasiBiodata(biodataForm, biodataErrors) : true,
+  ].every(Boolean);
+  if (!valid) {
+    formError.value = 'Data belum lengkap — periksa kolom yang ditandai merah.';
+    return;
+  }
   submitting.value = true;
   formError.value = null;
+  let pesertaBaruId: number | null = null;
   try {
+    if (modeBaru.value) {
+      // Buat akun peserta (+ biodata) dulu, lalu tautkan ke baris ini.
+      const baru = await pesertaApi.create({
+        namaLengkap: akun.namaLengkap.trim(),
+        asalSekolah: asalSekolahDisimpan(),
+        email: akun.email.trim(),
+        noTelepon: akun.noTelepon.trim(),
+        golonganKelasId: Number(akunBaru.golonganKelasId),
+        jurusanId: Number(akunBaru.jurusanId),
+        biodata: simpanBiodata ? biodataPayload(biodataForm) : undefined,
+      });
+      pesertaBaruId = baru.id;
+      // Status akun baru disamakan dengan isian status di form ini.
+      await pesertaApi.update(baru.id, {
+        statusUjian: form.lulusTesMasuk ? 'lulus' : 'belum_ujian',
+        statusKelulusan: form.statusKuliah,
+      });
+      if (simpanBiodata && !biodataTerkunci.value) await pesertaApi.setBiodataLock(baru.id, false);
+    } else if (biodataPeserta.value) {
+      const p = biodataPeserta.value;
+      const akunBerubah = {
+        namaLengkap: akun.namaLengkap.trim(),
+        email: akun.email.trim(),
+        noTelepon: akun.noTelepon.trim(),
+        asalSekolah: asalSekolahDisimpan(),
+      };
+      if ((Object.keys(akunBerubah) as (keyof typeof akunBerubah)[]).some((k) => akunBerubah[k] !== p[k])) {
+        await pesertaApi.update(p.id, akunBerubah);
+      }
+    }
     const payload = {
       nama: form.nama.trim(),
-      asalSekolah: form.asalSekolah.trim(),
+      asalSekolah: asalSekolahDisimpan(),
       prodi: form.prodi.trim(),
       gelombangId: form.gelombangId || null,
-      pesertaId: form.pesertaId || null,
+      pesertaId: pesertaBaruId ?? (form.pesertaId || null),
       noTelepon: form.noTelepon.trim() || null,
       skemaPembiayaan: form.skemaPembiayaan,
       formulirPendaftaran: form.formulirPendaftaran,
@@ -221,9 +427,24 @@ const handleSubmit = async () => {
     } else {
       await calonMahasiswaApi.create(payload);
     }
+    if (simpanBiodata && biodataPeserta.value) {
+      const id = biodataPeserta.value.id;
+      const hasil = await pesertaApi.saveBiodata(id, biodataPayload(biodataForm, biodataPeserta.value.biodata?.isAgree ?? true));
+      if (!!hasil.biodata?.isLocked !== biodataTerkunci.value) await pesertaApi.setBiodataLock(id, biodataTerkunci.value);
+    }
     onSaved();
     loadStats();
+    if (pesertaBaruId) {
+      toastSuccess(`Akun peserta dibuat. Login: username ${akun.email.trim()} · password ${akun.noTelepon.trim()} (No. HP)`);
+      loadPesertaOptions();
+    }
   } catch (err) {
+    // Akun sudah terbuat tapi langkah berikutnya gagal: pakai akun itu saat Simpan diulang (hindari akun ganda).
+    if (pesertaBaruId) {
+      modeAkun.value = 'tautkan';
+      form.pesertaId = pesertaBaruId;
+      loadPesertaOptions();
+    }
     formError.value = extractErrorMessage(err, 'Gagal menyimpan data calon mahasiswa');
   } finally {
     submitting.value = false;
@@ -243,18 +464,66 @@ const statusKuliahVariant = (item: CalonMahasiswa) =>
     | 'success'
     | 'danger';
 
+// ---- Sumber Informasi (ikon di sebelah Data Pendidikan → popup) ----
+const sumberOpen = ref(false);
+const sumberTarget = ref<CalonMahasiswa | null>(null);
+/** Sumber informasi efektif: isian popup, atau pilihan peserta saat mendaftar. */
+const namaSumber = (item: CalonMahasiswa) => item.sumberInformasi?.namaInformasi ?? item.peserta?.sumberInformasi?.namaInformasi ?? null;
+const openSumber = (item: CalonMahasiswa) => {
+  sumberTarget.value = item;
+  sumberOpen.value = true;
+};
+
+// ---- Sumber Informasi 2 (ikon di sebelah Sumber Informasi → popup kelas, skema, almamater, gelombang, jurusan 1–3) ----
+const dataPmbOpen = ref(false);
+const dataPmbTarget = ref<CalonMahasiswa | null>(null);
+/** Lengkap = kelas perkuliahan, gelombang, dan jurusan 1 terisi (isian popup atau pilihan peserta saat mendaftar). */
+const dataPmbLengkap = (item: CalonMahasiswa) =>
+  !!(item.golonganKelasId ?? item.peserta?.golonganKelasId) && !!item.gelombangId && !!(item.jurusan1Id ?? item.peserta?.jurusanId);
+const openDataPmb = (item: CalonMahasiswa) => {
+  dataPmbTarget.value = item;
+  dataPmbOpen.value = true;
+};
+
+// ---- Data Pendidikan (ikon di kolom aksi → popup) ----
+const dokumenOpen = ref(false);
+const dokumenTarget = ref<CalonMahasiswa | null>(null);
+const dokumenBeasiswa = ref(false);
+const openDokumen = (item: CalonMahasiswa, beasiswa = false) => {
+  dokumenTarget.value = item;
+  dokumenBeasiswa.value = beasiswa;
+  dokumenOpen.value = true;
+};
+
+const pendidikanOpen = ref(false);
+const pendidikanTarget = ref<CalonMahasiswa | null>(null);
+/** Lengkap = asal sekolah + jurusan, tahun lulus, jenis pengelolaan & alamat sekolah terisi (NISN opsional). */
+const pendidikanLengkap = (item: CalonMahasiswa) => {
+  const b = item.peserta?.biodata;
+  return !!(item.asalSekolah && item.asalSekolah !== ASAL_KOSONG && b?.jurusanSekolah && b.tahunLulus && b.jenisPengelolaanSekolah && b.alamatSekolah);
+};
+const openPendidikan = (item: CalonMahasiswa) => {
+  pendidikanTarget.value = item;
+  pendidikanOpen.value = true;
+};
+
+/**
+ * Alur sama dengan Status Pendaftaran di portal peserta: Pendaftaran → Kelengkapan Dokumen (Formulir Pendaftaran +
+ * Kelengkapan Persyaratan) → Tes Masuk → hasil (Diterima / Ditolak / Menunggu Hasil).
+ */
 const progressSteps = (item: CalonMahasiswa): ProgressStep[] => {
+  const tesGagal = item.peserta?.statusUjian === 'tidak_lulus';
   const base = [
-    { key: 'formulir', label: 'Formulir Pendaftaran', done: item.formulirPendaftaran },
-    { key: 'tes', label: 'Lulus Tes Masuk', done: item.lulusTesMasuk },
-    { key: 'kelengkapan', label: 'Kelengkapan Persyaratan', done: item.kelengkapanPersyaratan },
+    { key: 'pendaftaran', label: 'Pendaftaran', done: true, gagal: false },
+    { key: 'kelengkapan', label: 'Kelengkapan Dokumen', done: item.formulirPendaftaran && item.kelengkapanPersyaratan, gagal: false },
+    { key: 'tes', label: tesGagal ? 'Tidak Lulus Tes' : 'Tes Masuk', done: item.lulusTesMasuk, gagal: tesGagal },
   ];
   const firstPendingIndex = base.findIndex((s) => !s.done);
   const steps: ProgressStep[] = base.map((s, idx) => ({
     key: s.key,
     label: s.label,
-    state: s.done ? 'done' : idx === firstPendingIndex ? 'active' : 'pending',
-    icon: s.done ? 'check' : 'more_horiz',
+    state: s.done ? 'done' : s.gagal ? 'danger' : idx === firstPendingIndex ? 'active' : 'pending',
+    icon: s.done ? 'check' : s.gagal ? 'close' : 'more_horiz',
   }));
 
   const finalState = item.statusKuliah === 'diterima' ? 'success' : item.statusKuliah === 'ditolak' ? 'danger' : 'active';
@@ -294,120 +563,21 @@ const closeDetail = () => {
 const akunBeasiswaLabel = (item: CalonMahasiswa) =>
   item.akunBeasiswa === null ? 'Tidak Berlaku (N/A)' : item.akunBeasiswa ? 'Ya' : 'Tidak';
 
-const shareCandidate = (item: CalonMahasiswa) => {
-  const statusText =
-    item.statusKuliah === 'diterima'
-      ? 'Selamat! Anda dinyatakan DITERIMA sebagai mahasiswa baru.'
-      : item.statusKuliah === 'ditolak'
-        ? 'Mohon maaf, pendaftaran Anda belum dapat kami terima kali ini.'
-        : 'Pendaftaran Anda masih dalam proses peninjauan.';
-  const message = `Halo ${item.nama}, berikut update status pendaftaran PMB Anda di program studi ${item.prodi}:\n\n${statusText}`;
-  const phone = item.noTelepon?.replace(/[^0-9]/g, '');
-  const url = phone
-    ? `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-    : `https://wa.me/?text=${encodeURIComponent(message)}`;
-  window.open(url, '_blank', 'noopener');
-};
-
-// ---- Buat akun Peserta dari data Calon Mahasiswa (menutup gap: calon yang belum punya akun PMB) ----
-const isCreatePesertaOpen = ref(false);
-const createPesertaTarget = ref<CalonMahasiswa | null>(null);
-const createPesertaForm = reactive({
-  namaLengkap: '',
-  asalSekolah: '',
-  email: '',
-  noTelepon: '',
-  golonganKelasId: '' as number | '',
-  jurusanId: '' as number | '',
-});
-const createPesertaError = ref<string | null>(null);
-const createPesertaErrors = reactive<Record<string, string>>({});
-const createPesertaSubmitting = ref(false);
-
-const golonganKelasOptions = computed(() =>
-  golonganKelasList.value.map((g) => ({ value: g.id, label: g.namaKelas }))
-);
-const jurusanOptionsForGolongan = computed(() =>
-  jurusanList.value
-    .filter((j) => j.golonganKelasId === createPesertaForm.golonganKelasId)
-    .map((j) => ({ value: j.id, label: j.namaJurusan }))
-);
-
-watch(
-  () => createPesertaForm.golonganKelasId,
-  (val, oldVal) => {
-    if (val !== oldVal && !jurusanOptionsForGolongan.value.some((o) => o.value === createPesertaForm.jurusanId)) {
-      createPesertaForm.jurusanId = '';
-    }
-  }
-);
-
-const openCreatePeserta = (item: CalonMahasiswa) => {
-  createPesertaTarget.value = item;
-  isCreatePesertaOpen.value = true;
-  createPesertaError.value = null;
-  Object.keys(createPesertaErrors).forEach((k) => delete createPesertaErrors[k]);
-
-  createPesertaForm.namaLengkap = item.nama;
-  createPesertaForm.asalSekolah = item.asalSekolah;
-  createPesertaForm.email = '';
-  createPesertaForm.noTelepon = item.noTelepon ?? '';
-
-  // Coba tebak Jurusan dari teks bebas "prodi" supaya admin tinggal konfirmasi, bukan mengetik ulang.
-  const prodiLower = item.prodi.trim().toLowerCase();
-  const matchedJurusan = jurusanList.value.find(
-    (j) => prodiLower.includes(j.namaJurusan.toLowerCase()) || j.namaJurusan.toLowerCase().includes(prodiLower)
-  );
-  createPesertaForm.golonganKelasId = matchedJurusan?.golonganKelasId ?? '';
-  createPesertaForm.jurusanId = matchedJurusan?.id ?? '';
-};
-
-const closeCreatePeserta = () => {
-  isCreatePesertaOpen.value = false;
-  createPesertaTarget.value = null;
-};
-
-const handleCreatePeserta = async () => {
-  Object.keys(createPesertaErrors).forEach((k) => delete createPesertaErrors[k]);
-  if (!createPesertaForm.namaLengkap.trim()) createPesertaErrors.namaLengkap = 'Nama wajib diisi';
-  if (!createPesertaForm.asalSekolah.trim()) createPesertaErrors.asalSekolah = 'Asal sekolah wajib diisi';
-  if (!createPesertaForm.email.trim()) createPesertaErrors.email = 'Email wajib diisi';
-  if (!createPesertaForm.noTelepon.trim()) createPesertaErrors.noTelepon = 'No telepon wajib diisi';
-  if (!createPesertaForm.golonganKelasId) createPesertaErrors.golonganKelasId = 'Golongan kelas wajib dipilih';
-  if (!createPesertaForm.jurusanId) createPesertaErrors.jurusanId = 'Jurusan wajib dipilih';
-  if (Object.keys(createPesertaErrors).length > 0) return;
-  if (!createPesertaTarget.value) return;
-
-  createPesertaSubmitting.value = true;
-  createPesertaError.value = null;
+/** Reset password akun peserta ke nomor HP (wajib diganti peserta saat login). */
+const resetPasswordPeserta = async (item: CalonMahasiswa) => {
+  if (!item.peserta) return;
+  const ok = await confirmAction({
+    title: 'Reset password ke nomor HP?',
+    text: `Password akun ${item.peserta.namaLengkap} menjadi nomor HP ${item.peserta.noTelepon}. Peserta wajib membuat password baru saat login.`,
+    confirmLabel: 'Reset',
+  });
+  if (!ok) return;
   try {
-    const peserta = await pesertaApi.create({
-      namaLengkap: createPesertaForm.namaLengkap.trim(),
-      asalSekolah: createPesertaForm.asalSekolah.trim(),
-      email: createPesertaForm.email.trim(),
-      noTelepon: createPesertaForm.noTelepon.trim(),
-      golonganKelasId: Number(createPesertaForm.golonganKelasId),
-      jurusanId: Number(createPesertaForm.jurusanId),
-    });
-
-    // Akun baru defaultnya belum_ujian/menunggu; samakan dengan status yang sudah tercatat
-    // manual di Calon Mahasiswa supaya konsisten begitu ditautkan.
-    await pesertaApi.update(peserta.id, {
-      statusUjian: createPesertaTarget.value.lulusTesMasuk ? 'lulus' : 'belum_ujian',
-      statusKelulusan: createPesertaTarget.value.statusKuliah,
-    });
-
-    await calonMahasiswaApi.update(createPesertaTarget.value.id, { pesertaId: peserta.id });
-
-    toastSuccess('Akun peserta berhasil dibuat & ditautkan ke data calon mahasiswa ini');
-    closeCreatePeserta();
-    await Promise.all([loadPesertaOptions(), fetchItems()]);
+    const r = await pesertaApi.resetPasswordDefault(item.peserta.id);
+    toastSuccess(`Password direset. Login: username ${r.email} · password ${r.username} (No. HP)`);
+    if (viewTarget.value?.peserta) viewTarget.value.peserta.wajibGantiPassword = true;
   } catch (err) {
-    const message = extractErrorMessage(err, 'Gagal membuat akun peserta');
-    createPesertaError.value = message;
-    toastError(message);
-  } finally {
-    createPesertaSubmitting.value = false;
+    toastError(extractErrorMessage(err, 'Gagal mereset password'));
   }
 };
 </script>
@@ -415,7 +585,7 @@ const handleCreatePeserta = async () => {
 <template>
   <div>
     <PageHeader
-      title="Data Calon Mahasiswa Baru"
+      title="Peserta"
       subtitle="Daftar calon mahasiswa beserta status kelengkapan persyaratan dan hasil penerimaan — PMB Politeknik Bhakti Kartini."
     >
       <template v-if="canCreate" #actions>
@@ -448,23 +618,33 @@ const handleCreatePeserta = async () => {
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="p-4 border-b border-outline-variant bg-surface-bright flex flex-col gap-3">
-        <div class="flex flex-col md:flex-row gap-3">
-          <div class="flex-1">
+        <!-- min-w-0: kolom grid boleh menyempit; kotak cari dipaksa selebar kolomnya (bawaan md:w-96).
+             Kotak cari & dropdown disamakan tinggi + ukuran teksnya supaya sejajar satu baris. -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-center [&_input]:h-10 [&_button]:h-10 [&_button]:py-0 [&_button]:text-body-sm">
+          <div class="min-w-0 sm:col-span-2 xl:col-span-1 [&>div]:w-full!">
             <SearchInput v-model="search" placeholder="Cari nama siswa atau asal sekolah..." />
           </div>
-          <div class="w-full md:w-64">
-            <SelectInput
-              v-model="gelombangFilter"
-              placeholder="Semua Gelombang"
-              :options="gelombangOptions"
-              @change="onFilterChange"
-            />
+          <div class="min-w-0">
+            <SelectInput v-model="tahunFilter" placeholder="Semua Tahun PMB" :options="tahunOptions" @change="onFilterChange" />
+          </div>
+          <div class="min-w-0">
+            <SelectInput v-model="gelombangFilter" placeholder="Semua Gelombang" :options="gelombangOptions" @change="onFilterChange" />
+          </div>
+          <div class="min-w-0">
+            <SelectInput v-model="golonganFilter" placeholder="Semua Golongan Kelas" :options="golonganFilterOptions" @change="onGolonganFilterChange" />
+          </div>
+          <div class="min-w-0">
+            <SelectInput v-model="prodiFilter" placeholder="Semua Jurusan" :options="prodiFilterOptions" @change="onFilterChange" />
           </div>
         </div>
         <p class="text-label-sm text-on-surface-variant">Menampilkan {{ items.length }} dari {{ meta.total }} data</p>
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"
@@ -475,6 +655,16 @@ const handleCreatePeserta = async () => {
         :sort-dir="sortDir"
         @sort="handleSort"
       >
+        <template #cell-aksi="{ item }">
+          <button
+            type="button"
+            class="text-on-surface-variant hover:text-primary transition-colors"
+            title="Lihat Detail"
+            @click="openDetail(item)"
+          >
+            <span class="material-symbols-outlined" style="font-size: 20px">visibility</span>
+          </button>
+        </template>
         <template #cell-gelombang="{ item }">{{ item.gelombang?.namaGelombang ?? '-' }}</template>
         <template #cell-skemaPembiayaan="{ item }">
           <span
@@ -534,35 +724,62 @@ const handleCreatePeserta = async () => {
         <template #actions="{ item }">
           <button
             type="button"
-            class="text-on-surface-variant hover:text-primary transition-colors"
-            title="Lihat Detail"
-            @click="openDetail(item)"
+            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-white transition-opacity hover:opacity-85"
+            :class="pendidikanLengkap(item) ? 'bg-[#22c55e]' : 'bg-[#dc2626]'"
+            :title="pendidikanLengkap(item) ? 'Data Pendidikan: lengkap' : 'Data Pendidikan: belum lengkap'"
+            @click="openPendidikan(item)"
           >
-            <span class="material-symbols-outlined" style="font-size: 20px">visibility</span>
+            <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'wght' 700">{{ pendidikanLengkap(item) ? 'check' : 'school' }}</span>
           </button>
           <button
             type="button"
-            class="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary text-on-primary text-label-sm font-medium hover:opacity-90 transition-opacity"
-            title="Bagikan status via WhatsApp"
-            @click="shareCandidate(item)"
+            class="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-white transition-opacity hover:opacity-85"
+            :class="namaSumber(item) ? 'bg-[#22c55e]' : 'bg-[#dc2626]'"
+            :title="namaSumber(item) ? `Sumber Informasi: ${namaSumber(item)}${item.sumberTerkunci ? ' (terkunci)' : ''}` : 'Sumber Informasi: belum diisi'"
+            @click="openSumber(item)"
           >
-            <span class="material-symbols-outlined" style="font-size: 16px">share</span>
-            Share
+            <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'wght' 700">{{ namaSumber(item) ? 'check' : 'campaign' }}</span>
+            <span v-if="item.sumberTerkunci" class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-surface-container-lowest text-on-surface-variant flex items-center justify-center shadow">
+              <span class="material-symbols-outlined" style="font-size: 11px">lock</span>
+            </span>
           </button>
           <button
-            v-if="canCreate && !item.pesertaId"
             type="button"
-            class="text-on-surface-variant hover:text-primary transition-colors"
-            title="Buat Akun Peserta PMB dari data ini"
-            @click="openCreatePeserta(item)"
+            class="relative inline-flex items-center justify-center w-7 h-7 rounded-full text-white transition-opacity hover:opacity-85"
+            :class="dataPmbLengkap(item) ? 'bg-[#22c55e]' : 'bg-[#dc2626]'"
+            :title="`Sumber Informasi 2: ${dataPmbLengkap(item) ? 'lengkap' : 'belum lengkap'}${item.dataPmbTerkunci ? ' (terkunci)' : ''}`"
+            @click="openDataPmb(item)"
           >
-            <span class="material-symbols-outlined" style="font-size: 20px">person_add</span>
+            <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'wght' 700">{{ dataPmbLengkap(item) ? 'check' : 'assignment' }}</span>
+            <span v-if="item.dataPmbTerkunci" class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-surface-container-lowest text-on-surface-variant flex items-center justify-center shadow">
+              <span class="material-symbols-outlined" style="font-size: 11px">lock</span>
+            </span>
+          </button>
+          <button
+            v-if="item.peserta"
+            type="button"
+            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-white transition-opacity hover:opacity-85"
+            :class="item.dokumenUmumLengkap ? 'bg-[#22c55e]' : 'bg-[#dc2626]'"
+            :title="item.dokumenUmumLengkap ? 'Dokumen Pendaftaran (lengkap)' : 'Dokumen Pendaftaran (belum lengkap)'"
+            @click="openDokumen(item)"
+          >
+            <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'wght' 700">{{ item.dokumenUmumLengkap ? 'check' : 'description' }}</span>
+          </button>
+          <button
+            v-if="item.peserta"
+            type="button"
+            class="inline-flex items-center justify-center w-7 h-7 rounded-full text-white transition-opacity hover:opacity-85"
+            :class="item.dokumenBeasiswaLengkap ? 'bg-[#22c55e]' : 'bg-[#dc2626]'"
+            :title="item.dokumenBeasiswaLengkap ? 'Dokumen Pendaftaran 2 / Beasiswa (lengkap)' : 'Dokumen Pendaftaran 2 / Beasiswa (belum lengkap)'"
+            @click="openDokumen(item, true)"
+          >
+            <span class="material-symbols-outlined" style="font-size: 18px; font-variation-settings: 'wght' 700">{{ item.dokumenBeasiswaLengkap ? 'check' : 'description' }}</span>
           </button>
           <button
             v-if="canUpdate"
             type="button"
             class="text-on-surface-variant hover:text-primary transition-colors"
-            title="Ubah"
+            title="Ubah Data"
             @click="openEdit(item)"
           >
             <span class="material-symbols-outlined" style="font-size: 20px">edit</span>
@@ -584,8 +801,8 @@ const handleCreatePeserta = async () => {
 
     <Modal
       :model-value="isFormOpen"
-      :title="editingItem ? 'Ubah Calon Mahasiswa' : 'Tambah Calon Mahasiswa'"
-      size="lg"
+      :title="editingItem ? 'Ubah Peserta' : 'Tambah Peserta'"
+      size="xl"
       @update:model-value="closeForm"
     >
       <form class="space-y-4" @submit.prevent="handleSubmit">
@@ -593,34 +810,91 @@ const handleCreatePeserta = async () => {
           {{ formError }}
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div v-if="!formAkunTampil" class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model="form.nama" label="Nama" required :error="errors.nama" />
           <TextInput v-model="form.asalSekolah" label="Asal Sekolah" required :error="errors.asalSekolah" />
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="form.prodi" label="Prodi" required :error="errors.prodi" placeholder="D4 - Rekayasa Keamanan Siber" />
-          <TextInput v-model="form.noTelepon" label="No Telepon" hint="Dipakai untuk tombol Share via WhatsApp" />
+        <div v-if="!modeBaru || !formAkunTampil" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <SearchableSelect
+            v-if="!modeBaru"
+            :model-value="form.prodi"
+            label="Prodi"
+            required
+            :error="errors.prodi"
+            :options="prodiOptions"
+            placeholder="-- Pilih Prodi --"
+            search-placeholder="Ketik nama prodi..."
+            @update:model-value="(v) => (form.prodi = v ? String(v) : '')"
+          />
+          <TextInput v-if="!formAkunTampil" v-model="form.noTelepon" label="No Telepon" />
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SelectInput v-model="form.gelombangId" label="Gelombang" placeholder="Belum dipilih" :options="gelombangOptions" />
+          <SelectInput v-model="form.gelombangId" label="Gelombang" placeholder="Belum dipilih" :options="gelombangFormOptions" />
           <SelectInput v-model="form.skemaPembiayaan" label="Skema Pembiayaan" :options="skemaOptions" />
         </div>
 
-        <div>
-          <SelectInput
-            v-model="form.pesertaId"
-            label="Tautkan ke Akun Peserta PMB"
-            placeholder="Tidak ditautkan (isi status manual)"
-            :options="pesertaOptions"
-          />
-          <p class="mt-1 text-label-sm text-on-surface-variant">
-            Jika ditautkan, status Lulus Tes Masuk &amp; Status Kuliah otomatis mengikuti data Peserta yang sebenarnya dan tidak bisa diisi manual.
-          </p>
+        <div class="space-y-3">
+          <div v-if="!sudahTertaut" class="flex flex-wrap gap-2">
+            <button
+              v-for="m in MODE_AKUN"
+              :key="m.value"
+              type="button"
+              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border text-label-md font-medium transition-colors"
+              :class="modeAkun === m.value ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant text-on-surface hover:bg-surface-container'"
+              @click="pilihModeAkun(m.value)"
+            >
+              <span class="material-symbols-outlined" style="font-size: 18px">{{ m.icon }}</span>{{ m.label }}
+            </button>
+          </div>
+          <div v-if="modeBaru" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SelectInput
+              v-model="akunBaru.golonganKelasId"
+              label="Kelas Perkuliahan"
+              required
+              :options="kelasAkunBaruOptions"
+              :error="akunErrors.golonganKelasId"
+            />
+            <div>
+              <SelectInput
+                v-model="akunBaru.jurusanId"
+                label="Program Studi"
+                required
+                :options="jurusanAkunBaruOptions"
+                :placeholder="akunBaru.golonganKelasId && !jurusanAkunBaruOptions.length ? 'Belum ada prodi untuk kelas ini' : 'Pilih...'"
+                :disabled="!akunBaru.golonganKelasId || !jurusanAkunBaruOptions.length"
+                :error="akunErrors.jurusanId"
+              />
+              <p v-if="akunBaru.golonganKelasId && !jurusanAkunBaruOptions.length" class="mt-1 text-label-sm text-[#b45309]">
+                Kelas ini belum punya program studi. Tambahkan di <b>Master Data › Jurusan</b> (pilih golongan kelas ini), atau pilih kelas lain.
+              </p>
+            </div>
+            <p class="md:col-span-2 text-label-sm text-on-surface-variant">
+              Akun peserta dibuat otomatis — login dengan nomor HP, password awal = nomor HP.
+            </p>
+          </div>
+          <template v-else>
+            <SelectInput
+              v-model="form.pesertaId"
+              label="Tautkan ke Akun Peserta PMB"
+              placeholder="Tidak ditautkan (isi status manual)"
+              :options="pesertaOptions"
+            />
+            <p class="text-label-sm text-on-surface-variant">
+              Jika ditautkan, status Lulus Tes Masuk &amp; Status Kuliah otomatis mengikuti data Peserta yang sebenarnya dan tidak bisa diisi manual.
+            </p>
+          </template>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 py-2 border-y border-outline-variant">
-          <CheckboxToggle v-model="form.formulirPendaftaran" label="Formulir Pendaftaran" />
+          <div v-if="form.pesertaId">
+            <span class="block font-medium text-label-md text-on-surface mb-2">Formulir Pendaftaran</span>
+            <StatusBadge
+              :label="form.formulirPendaftaran ? 'Lengkap (mengikuti Dokumen Pendaftaran)' : 'Belum lengkap (mengikuti Dokumen Pendaftaran)'"
+              :variant="form.formulirPendaftaran ? 'success' : 'neutral'"
+            />
+          </div>
+          <CheckboxToggle v-else v-model="form.formulirPendaftaran" label="Formulir Pendaftaran" />
           <div v-if="form.pesertaId">
             <span class="block font-medium text-label-md text-on-surface mb-2">Lulus Tes Masuk</span>
             <StatusBadge
@@ -629,7 +903,14 @@ const handleCreatePeserta = async () => {
             />
           </div>
           <CheckboxToggle v-else v-model="form.lulusTesMasuk" label="Lulus Tes Masuk" />
-          <CheckboxToggle v-model="form.kelengkapanPersyaratan" label="Kelengkapan Persyaratan" />
+          <div v-if="form.pesertaId">
+            <span class="block font-medium text-label-md text-on-surface mb-2">Kelengkapan Persyaratan</span>
+            <StatusBadge
+              :label="form.kelengkapanPersyaratan ? 'Lengkap (mengikuti Dokumen Pendaftaran 2)' : 'Belum lengkap (mengikuti Dokumen Pendaftaran 2)'"
+              :variant="form.kelengkapanPersyaratan ? 'success' : 'neutral'"
+            />
+          </div>
+          <CheckboxToggle v-else v-model="form.kelengkapanPersyaratan" label="Kelengkapan Persyaratan" />
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -644,6 +925,38 @@ const handleCreatePeserta = async () => {
           </div>
           <SelectInput v-else v-model="form.statusKuliah" label="Status Kuliah" :options="statusKuliahOptions" />
         </div>
+
+        <section class="border border-outline-variant rounded-lg overflow-hidden">
+          <div class="px-4 py-3 bg-surface-bright border-b border-outline-variant flex flex-wrap items-center gap-2">
+            <h3 class="font-semibold text-body-md text-on-surface mr-auto">Biodata Personal</h3>
+            <StatusBadge
+              v-if="biodataPeserta && !biodataPeserta.biodata"
+              variant="neutral"
+              label="Belum diisi peserta"
+            />
+          </div>
+          <p v-if="biodataLoading" class="p-4 text-body-sm text-on-surface-variant">Memuat biodata...</p>
+          <p v-else-if="!formAkunTampil" class="p-4 text-body-sm text-on-surface-variant">
+            Pilih <b>Buat akun peserta baru</b> atau tautkan ke akun peserta PMB di atas untuk mengisi biodata.
+          </p>
+          <div v-else class="p-4 space-y-4">
+            <p v-if="!biodataPeserta?.biodata" class="text-label-sm text-on-surface-variant">
+              Nama, email &amp; No. HP wajib. Biodata lainnya boleh dikosongkan — hanya disimpan bila diisi.
+            </p>
+            <p v-if="!biodataPeserta" class="flex items-start gap-2 px-3 py-2 rounded-md bg-primary-container/40 text-body-sm text-on-surface">
+              <span class="material-symbols-outlined text-primary" style="font-size: 18px">key</span>
+              <span>Akun login peserta: <b>username = email</b>, <b>password awal = No. HP</b>. Peserta diminta membuat password baru saat login pertama.</span>
+            </p>
+            <PesertaBiodataFields :form="biodataForm" :errors="semuaErrorBiodata" :akun="akun" :sekolah="form" :tanpa-pendidikan="true" />
+            <div class="border-t border-outline-variant pt-4">
+              <CheckboxToggle
+                v-model="biodataTerkunci"
+                label="Kunci biodata"
+                description="Terkunci = peserta tidak bisa mengubah biodata dari portal pendaftaran. Hilangkan centang untuk membuka kunci."
+              />
+            </div>
+          </div>
+        </section>
       </form>
       <template #footer>
         <AppButton variant="secondary" @click="closeForm">Batal</AppButton>
@@ -653,9 +966,9 @@ const handleCreatePeserta = async () => {
 
     <Modal
       :model-value="!!viewTarget"
-      title="Detail Calon Mahasiswa"
-      subtitle="Data pendaftaran yang tercatat untuk calon mahasiswa ini."
-      size="lg"
+      title="Detail Peserta"
+      subtitle="Data pendaftaran & biodata yang tercatat untuk peserta ini."
+      size="xl"
       @update:model-value="closeDetail"
     >
       <div v-if="viewTarget" class="space-y-6">
@@ -690,12 +1003,31 @@ const handleCreatePeserta = async () => {
           </div>
           <div>
             <p class="text-label-sm text-on-surface-variant mb-1">Tertaut ke Peserta PMB</p>
-            <p v-if="viewTarget.peserta" class="text-body-md text-on-surface font-medium">
-              {{ viewTarget.peserta.namaLengkap }} — {{ viewTarget.peserta.email }}
-            </p>
+            <template v-if="viewTarget.peserta">
+              <p class="text-body-md text-on-surface font-medium">{{ viewTarget.peserta.namaLengkap }} — {{ viewTarget.peserta.email }}</p>
+              <p class="text-body-sm text-on-surface-variant mt-1">
+                Login: username <b>{{ viewTarget.peserta.email }}</b> ·
+                {{ viewTarget.peserta.wajibGantiPassword ? `password awal = No. HP (${viewTarget.peserta.noTelepon})` : 'password sudah diganti peserta' }}
+              </p>
+              <button
+                v-if="canUpdate"
+                type="button"
+                class="mt-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-outline-variant text-label-sm font-medium text-on-surface hover:bg-surface-container"
+                @click="resetPasswordPeserta(viewTarget)"
+              >
+                <span class="material-symbols-outlined" style="font-size: 16px">lock_reset</span>Reset password ke nomor HP
+              </button>
+            </template>
             <p v-else class="text-body-md text-on-surface-variant">Belum ditautkan (status diisi manual)</p>
           </div>
         </div>
+
+        <PesertaBiodataPanel
+          v-if="viewTarget.peserta"
+          :peserta-id="viewTarget.peserta.id"
+          :can-update="canUpdate"
+          :can-delete="canDelete"
+        />
 
         <div class="border-t border-outline-variant pt-5">
           <div class="flex items-center justify-between mb-5">
@@ -743,58 +1075,10 @@ const handleCreatePeserta = async () => {
       </template>
     </Modal>
 
-    <Modal
-      :model-value="isCreatePesertaOpen"
-      title="Buat Akun Peserta PMB"
-      :subtitle="createPesertaTarget ? `Dari data calon mahasiswa: ${createPesertaTarget.nama}` : undefined"
-      size="lg"
-      @update:model-value="closeCreatePeserta"
-    >
-      <form class="space-y-4" @submit.prevent="handleCreatePeserta">
-        <div v-if="createPesertaError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
-          {{ createPesertaError }}
-        </div>
-        <p class="text-body-sm text-on-surface-variant">
-          Data ini belum punya akun pendaftaran (Peserta) sungguhan, sehingga tidak bisa muncul di daftar "Generate NIM
-          Mahasiswa" di BAAK. Lengkapi form ini untuk membuat akunnya — password akan digenerate otomatis dan dikirim ke
-          email di bawah.
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="createPesertaForm.namaLengkap" label="Nama Lengkap" required :error="createPesertaErrors.namaLengkap" />
-          <TextInput v-model="createPesertaForm.asalSekolah" label="Asal Sekolah" required :error="createPesertaErrors.asalSekolah" />
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model="createPesertaForm.email" label="Email" type="email" required :error="createPesertaErrors.email" />
-          <TextInput v-model="createPesertaForm.noTelepon" label="No Telepon" required :error="createPesertaErrors.noTelepon" />
-        </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <SelectInput
-            v-model="createPesertaForm.golonganKelasId"
-            label="Golongan Kelas"
-            required
-            placeholder="Pilih golongan kelas..."
-            :options="golonganKelasOptions"
-            :error="createPesertaErrors.golonganKelasId"
-          />
-          <SelectInput
-            v-model="createPesertaForm.jurusanId"
-            label="Jurusan"
-            required
-            placeholder="Pilih jurusan..."
-            :options="jurusanOptionsForGolongan"
-            :disabled="!createPesertaForm.golonganKelasId"
-            :error="createPesertaErrors.jurusanId"
-          />
-        </div>
-      </form>
-      <template #footer>
-        <AppButton variant="secondary" @click="closeCreatePeserta">Batal</AppButton>
-        <AppButton :disabled="createPesertaSubmitting" @click="handleCreatePeserta">
-          {{ createPesertaSubmitting ? 'Membuat akun...' : 'Buat & Tautkan' }}
-        </AppButton>
-      </template>
-    </Modal>
+    <PendidikanModal v-model="pendidikanOpen" :item="pendidikanTarget" :can-update="canUpdate" @saved="fetchItems" />
+    <DokumenPesertaModal v-model="dokumenOpen" :item="dokumenTarget" :beasiswa="dokumenBeasiswa" />
+    <SumberInformasiModal v-model="sumberOpen" :item="sumberTarget" :can-update="canUpdate" @saved="fetchItems" />
+    <DataPmbModal v-model="dataPmbOpen" :item="dataPmbTarget" :can-update="canUpdate" @saved="fetchItems" />
 
     <ConfirmDialog
       :open="!!deleteTarget"

@@ -2,9 +2,10 @@
 import { onMounted, ref } from 'vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import DonutChart from '@/components/charts/DonutChart.vue';
+import StatistikAkmPanel from '@/components/baak/StatistikAkmPanel.vue';
 import LineChart from '@/components/charts/LineChart.vue';
-import { mahasiswaApi } from '@/api/mahasiswa';
-import { dosenApi } from '@/api/dosen';
+import { http } from '@/api/http';
+import type { ApiResponse } from '@/types/common';
 import { nilaiMahasiswaApi } from '@/api/nilaiMahasiswa';
 import { yudisiumApi } from '@/api/yudisium';
 import { jadwalSidangApi } from '@/api/jadwalSidang';
@@ -36,28 +37,37 @@ const yudisiumColumns: DataTableColumn[] = [
   { key: 'pin', label: 'PIN' },
 ];
 
+interface RingkasanProdi {
+  mahasiswaAktif: number;
+  mahasiswaCuti: number;
+  totalDosen: number;
+  mahasiswaLulus: number;
+  dosenStats: DosenStatItem[];
+}
+
+/**
+ * Kartu ringkasan & sebaran dosen dari /prodi/dashboard (dibatasi ke prodi sesi). Bagian lain dimuat
+ * terpisah (allSettled) supaya satu sumber yang gagal/ditolak tidak mengosongkan seluruh dashboard.
+ */
 const loadDashboard = async () => {
   loading.value = true;
   try {
-    const [aktifResult, cutiResult, dosenResult, yudisiumResult, dosenStatsResult, semesterResult, jadwalResult, yudisiumRecentResult] =
-      await Promise.all([
-        mahasiswaApi.list({ limit: 1, isActive: true }),
-        mahasiswaApi.list({ limit: 1, statusKeluar: 'CUTI' }),
-        dosenApi.list({ limit: 1 }),
-        yudisiumApi.list({ limit: 1 }),
-        dosenApi.stats(),
-        nilaiMahasiswaApi.semesterSummary(),
-        jadwalSidangApi.list({ limit: 5 }),
-        yudisiumApi.list({ limit: 5, sortBy: 'tanggalYudisium', sortDir: 'desc' }),
-      ]);
-    totalMahasiswaAktif.value = aktifResult.meta.total;
-    totalMahasiswaCuti.value = cutiResult.meta.total;
-    totalDosen.value = dosenResult.meta.total;
-    totalYudisium.value = yudisiumResult.meta.total;
-    dosenStats.value = dosenStatsResult;
-    semesterSummary.value = semesterResult;
-    jadwalSidangTerdekat.value = jadwalResult.data;
-    yudisiumTerbaru.value = yudisiumRecentResult.data;
+    const [ringkasan, semester, jadwal, yudisiumRecent] = await Promise.allSettled([
+      http.get<ApiResponse<RingkasanProdi>>('/prodi/dashboard').then((r) => r.data.data),
+      nilaiMahasiswaApi.semesterSummary(),
+      jadwalSidangApi.list({ limit: 5 }),
+      yudisiumApi.list({ limit: 5, sortBy: 'tanggalYudisium', sortDir: 'desc' }),
+    ]);
+    if (ringkasan.status === 'fulfilled') {
+      totalMahasiswaAktif.value = ringkasan.value.mahasiswaAktif;
+      totalMahasiswaCuti.value = ringkasan.value.mahasiswaCuti;
+      totalDosen.value = ringkasan.value.totalDosen;
+      totalYudisium.value = ringkasan.value.mahasiswaLulus;
+      dosenStats.value = ringkasan.value.dosenStats;
+    }
+    if (semester.status === 'fulfilled') semesterSummary.value = semester.value;
+    if (jadwal.status === 'fulfilled') jadwalSidangTerdekat.value = jadwal.value.data;
+    if (yudisiumRecent.status === 'fulfilled') yudisiumTerbaru.value = yudisiumRecent.value.data;
   } finally {
     loading.value = false;
   }
@@ -114,6 +124,8 @@ onMounted(loadDashboard);
         </div>
       </div>
     </section>
+
+    <StatistikAkmPanel modul="prodi" />
 
     <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       <div class="bg-surface-container-lowest border border-outline-variant rounded-lg p-6">

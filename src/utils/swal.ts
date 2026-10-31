@@ -36,6 +36,10 @@ export const toastError = (message: string) => {
   toast.fire({ icon: 'error', title: message, iconColor: error });
 };
 
+export const toastWarning = (message: string) => {
+  toast.fire({ icon: 'warning', title: message, iconColor: '#eda100' });
+};
+
 export const toastInfo = (message: string) => {
   toast.fire({ icon: 'info', title: message, iconColor: primary });
 };

@@ -11,6 +11,12 @@ export const laporanRealisasiApi = {
     return { data: data.data, meta: data.meta };
   },
 
+  /** PDF "Realisasi Pembahasan Selama Perkuliahan" satu jadwal, berisi data realisasi mengajar. */
+  async cetakPdf(jadwalKuliahId: number | string): Promise<Blob> {
+    const { data } = await http.get(`/laporan/cetak-realisasi/${jadwalKuliahId}/pdf`, { responseType: 'blob' });
+    return data;
+  },
+
   async kelasOptions(): Promise<string[]> {
     const { data } = await http.get<ApiResponse<string[]>>('/laporan/cetak-realisasi/kelas-options');
     return data.data;

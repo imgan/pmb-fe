@@ -79,6 +79,11 @@ export const mahasiswaApi = {
     return data.data;
   },
 
+  /** Reset password portal mahasiswa ke NIM-nya. */
+  async resetPassword(id: number): Promise<{ nim: string; namaLengkap: string }> {
+    const { data } = await http.post<ApiResponse<{ nim: string; namaLengkap: string }>>(`/mahasiswa/${id}/reset-password`);
+    return data.data;
+  },
   async exportExcel(): Promise<Blob> {
     const { data } = await http.get('/mahasiswa/export', { responseType: 'blob' });
     return data;

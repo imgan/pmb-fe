@@ -3,8 +3,10 @@ import { onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import { ukuranAlmamaterOptions } from '@/utils/almamater';
 import RowActions from '@/components/ui/RowActions.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
@@ -24,6 +26,7 @@ import { usePermission } from '@/composables/usePermission';
 import { toastSuccess, toastError } from '@/utils/swal';
 import { MENU } from '@/constants/menuCodes';
 import type { EligibleSummaryItem, Mahasiswa, StatusMasukMahasiswa } from '@/types/entities';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.MAHASISWA_MANAGEMENT);
 
@@ -51,18 +54,19 @@ const statusOptions = [
 onMounted(async () => {
   const [golongan, jurusan, tahunAjaran] = await Promise.all([
     golonganKelasApi.list({ limit: 100 }),
-    jurusanApi.list({ limit: 100 }),
+    jurusanApi.listProdi({ limit: 100 }),
     tahunAjaranApi.list({ limit: 100, isActive: true }),
   ]);
   golonganKelasOptions.value = golongan.data.map((g) => ({ value: g.id, label: g.namaKelas }));
   jurusanOptions.value = jurusan.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
-  tahunAjaranAktifOptions.value = tahunAjaran.data.map((t) => ({ value: t.id, label: t.nama }));
+  tahunAjaranAktifOptions.value = tahunAjaran.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
 });
 
 const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -355,8 +359,18 @@ const closeBiodata = () => {
   biodataTarget.value = null;
 };
 
+// No KPS hanya tampil & wajib kalau "Terima KPS" = Ya.
+const noKpsError = ref<string | null>(null);
+
 const handleSaveBiodata = async () => {
   if (!biodataTarget.value) return;
+  noKpsError.value = null;
+  if (biodataForm.terimaKps !== 'Ya') biodataForm.noKps = '';
+  else if (!biodataForm.noKps.trim()) {
+    noKpsError.value = 'No KPS wajib diisi untuk penerima KPS';
+    toastError(noKpsError.value);
+    return;
+  }
   biodataSubmitting.value = true;
   biodataError.value = null;
   try {
@@ -451,6 +465,23 @@ const handleGenerate = async () => {
     generateSubmitting.value = false;
   }
 };
+
+// Reset password portal mahasiswa ke NIM (mahasiswa lupa password).
+const resetTarget = ref<Mahasiswa | null>(null);
+const resetting = ref(false);
+const confirmResetPassword = async () => {
+  if (!resetTarget.value) return;
+  resetting.value = true;
+  try {
+    const result = await mahasiswaApi.resetPassword(resetTarget.value.id);
+    toastSuccess(`Password ${result.namaLengkap} direset ke NIM (${result.nim})`);
+    resetTarget.value = null;
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal reset password'));
+  } finally {
+    resetting.value = false;
+  }
+};
 </script>
 
 <template>
@@ -514,6 +545,10 @@ const handleGenerate = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="items"
@@ -542,7 +577,7 @@ const handleGenerate = async () => {
         </template>
         <template #cell-tahunMasuk="{ item }">
           {{ item.tahunMasuk }}
-          <span v-if="item.tahunAjaran" class="block text-label-sm text-on-surface-variant">{{ item.tahunAjaran.nama }}</span>
+          <span v-if="item.tahunAjaran" class="block text-label-sm text-on-surface-variant">{{ formatTahunAjaran(item.tahunAjaran) }}</span>
         </template>
         <template #cell-isActive="{ item }">
           <StatusBadge :label="item.isActive ? 'Aktif' : 'Non-aktif'" :variant="item.isActive ? 'success' : 'neutral'" />
@@ -555,6 +590,15 @@ const handleGenerate = async () => {
             @click="openBiodata(item)"
           >
             <span class="material-symbols-outlined" style="font-size: 20px">contact_page</span>
+          </button>
+          <button
+            v-if="canUpdate"
+            type="button"
+            class="text-on-surface-variant hover:text-primary transition-colors"
+            title="Reset Password (ke NIM)"
+            @click="resetTarget = item"
+          >
+            <span class="material-symbols-outlined" style="font-size: 20px">lock_reset</span>
           </button>
           <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
         </template>
@@ -692,6 +736,16 @@ const handleGenerate = async () => {
     </Modal>
 
     <ConfirmDialog
+      :open="!!resetTarget"
+      title="Reset Password Mahasiswa"
+      :message="`Reset password portal ${resetTarget?.namaLengkap ?? ''} ke NIM (${resetTarget?.nim ?? ''})? Password lama tidak bisa dipakai lagi.`"
+      confirm-label="Reset Password"
+      :loading="resetting"
+      @confirm="confirmResetPassword"
+      @cancel="resetTarget = null"
+    />
+
+    <ConfirmDialog
       :open="!!deleteTarget"
       title="Hapus Mahasiswa"
       :message="`Yakin ingin menghapus data mahasiswa ${deleteTarget?.namaLengkap ?? ''} (${deleteTarget?.nim ?? ''})?`"
@@ -809,7 +863,7 @@ const handleGenerate = async () => {
           <TextInput v-model="biodataForm.hp" label="No HP" />
           <TextInput v-model="biodataForm.teleponRumah" label="Telp Rumah" />
         </div>
-        <TextInput v-model="biodataForm.almamater" label="Almamater" />
+        <SelectInput v-model="biodataForm.almamater" label="Almamater (Ukuran)" placeholder="Pilih ukuran..." :options="ukuranAlmamaterOptions(biodataForm.almamater)" />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SelectInput
@@ -818,7 +872,13 @@ const handleGenerate = async () => {
             placeholder="Pilih..."
             :options="[{ value: 'Ya', label: 'Ya' }, { value: 'Tidak', label: 'Tidak' }]"
           />
-          <TextInput v-model="biodataForm.noKps" label="No KPS" />
+          <TextInput
+            v-if="biodataForm.terimaKps === 'Ya'"
+            v-model="biodataForm.noKps"
+            label="No KPS"
+            required
+            :error="noKpsError"
+          />
         </div>
 
         <div class="pt-2 border-t border-outline-variant">

@@ -5,6 +5,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useMenuStore } from '@/stores/menu';
 import { materialIcon } from '@/utils/icons';
 import ProfileSettingsModal from '@/components/layout/ProfileSettingsModal.vue';
+import SidebarBrand from '@/components/layout/SidebarBrand.vue';
+import AcademicContextCard from '@/components/layout/AcademicContextCard.vue';
 import type { MenuTreeNode } from '@/types/entities';
 
 const authStore = useAuthStore();
@@ -60,7 +62,7 @@ const handleLogout = () => {
       <button type="button" class="text-on-surface" @click="mobileOpen = true">
         <span class="material-symbols-outlined">menu</span>
       </button>
-      <span class="ml-3 font-semibold text-headline-md text-primary">SDI Console</span>
+      <span class="ml-3 font-semibold text-headline-md text-primary">SDI</span>
     </div>
 
     <div v-if="mobileOpen" class="fixed inset-0 bg-inverse-surface/50 z-40 md:hidden" @click="mobileOpen = false" />
@@ -70,20 +72,7 @@ const handleLogout = () => {
       class="flex flex-col bg-surface-container-low shadow-sm h-full w-64 fixed left-0 top-0 p-4 z-50 transition-transform overflow-y-auto"
       :class="mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
     >
-      <div class="mb-8 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-semibold shrink-0">
-            {{ authStore.user?.name?.charAt(0)?.toUpperCase() ?? 'A' }}
-          </div>
-          <div>
-            <h2 class="font-semibold text-headline-md text-primary truncate">SDI Console</h2>
-            <p class="text-body-sm text-on-surface-variant truncate">Sumber Daya Insani</p>
-          </div>
-        </div>
-        <button type="button" class="md:hidden text-on-surface-variant" @click="mobileOpen = false">
-          <span class="material-symbols-outlined">close</span>
-        </button>
-      </div>
+      <SidebarBrand label="SDI" icon="badge" @close="mobileOpen = false" />
 
       <nav class="flex-1 space-y-1">
         <template v-for="item in sidebarTree" :key="item.id">
@@ -148,6 +137,7 @@ const handleLogout = () => {
       </nav>
 
       <div class="mt-4 pt-4 border-t border-outline-variant">
+        <AcademicContextCard />
         <button
           type="button"
           class="w-full flex items-center gap-3 mb-3 p-1 -m-1 rounded-md hover:bg-surface-container-highest transition-colors text-left"

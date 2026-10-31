@@ -131,7 +131,7 @@ watch(search, () => {
 onMounted(async () => {
   try {
     const [jurusanResult, tahunResult] = await Promise.all([
-      jurusanApi.list({ limit: 100 }),
+      jurusanApi.listProdi({ limit: 100 }),
       laporanIjazahApi.tahunLulusOptions(),
     ]);
     jurusanOptions.value = jurusanResult.data.map((j) => ({ value: j.id, label: j.namaJurusan.toUpperCase() }));
@@ -175,7 +175,7 @@ onMounted(async () => {
         <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span>Show</span>
           <div class="w-20">
-            <SelectInput v-model="pageSize" :options="pageSizeOptions" />
+            <SelectInput v-model="pageSize" :options="pageSizeOptions" :clearable="false" />
           </div>
           <span>entries</span>
         </div>

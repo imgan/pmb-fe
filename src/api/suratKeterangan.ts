@@ -1,4 +1,5 @@
 import { http } from './http';
+import { filenameFromDisposition, type NamedBlob } from '@/utils/download';
 import { createCrudApi } from './crudFactory';
 import type { ApiResponse } from '@/types/common';
 import type { JenisSurat, StatusSuratKeterangan, SuratKeterangan, SuratKeteranganCetakData } from '@/types/entities';
@@ -33,8 +34,8 @@ export const suratKeteranganApi = {
     return data.data;
   },
 
-  async cetakPdf(id: number | string): Promise<Blob> {
-    const { data } = await http.get(`/laporan/cetak-surat/${id}/pdf`, { responseType: 'blob' });
-    return data;
+  async cetakPdf(id: number | string): Promise<NamedBlob> {
+    const { data, headers } = await http.get(`/laporan/cetak-surat/${id}/pdf`, { responseType: 'blob' });
+    return { blob: data, filename: filenameFromDisposition(headers['content-disposition'], `surat-${id}.pdf`) };
   },
 };

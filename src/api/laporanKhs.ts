@@ -11,7 +11,8 @@ export const laporanKhsApi = {
     return { data: data.data, meta: data.meta };
   },
 
-  async cetakPdf(mahasiswaId: number, semester: number): Promise<Blob> {
+  /** `semester: 'semua'` = KHS seluruh semester digabung jadi satu tabel (urut semester terkecil). */
+  async cetakPdf(mahasiswaId: number, semester: number | 'semua'): Promise<Blob> {
     const { data } = await http.get(`/laporan/cetak-khs/${mahasiswaId}/pdf`, {
       params: { semester },
       responseType: 'blob',

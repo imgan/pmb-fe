@@ -19,6 +19,27 @@ const baseApi = createCrudApi<Jurusan, JurusanPayload, Partial<JurusanPayload>>(
 export const jurusanApi = {
   ...baseApi,
 
+  /**
+   * Satu baris per prodi (kode prodi) untuk dropdown akademik. Tabel jurusan menyimpan prodi per
+   * golongan kelas (Reguler/Karyawan/Kelas Malam) untuk pendaftaran PMB, jadi satu prodi bisa
+   * muncul beberapa kali; dipertahankan id terkecil — id yang dipakai data akademik (mahasiswa,
+   * kurikulum, dll.). Master Jurusan & PMB tetap memakai `list` (per golongan kelas).
+   */
+  async listProdi(query: Parameters<typeof baseApi.list>[0] = {}) {
+    const result = await baseApi.list({ ...query, limit: 200 });
+    const seen = new Set<string>();
+    const data = [...result.data]
+      .sort((a, b) => a.id - b.id)
+      .filter((j) => {
+        const key = j.kodeProdi || `id:${j.id}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a, b) => a.namaJurusan.localeCompare(b.namaJurusan));
+    return { ...result, data };
+  },
+
   async exportExcel(): Promise<Blob> {
     const { data } = await http.get('/jurusan/export', { responseType: 'blob' });
     return data;

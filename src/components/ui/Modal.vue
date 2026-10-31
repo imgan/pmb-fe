@@ -5,12 +5,14 @@ const props = withDefaults(
   defineProps<{
     title: string;
     subtitle?: string;
-    size?: 'md' | 'lg';
+    size?: 'md' | 'lg' | 'xl' | '2xl';
   }>(),
   { size: 'md' }
 );
 
-const maxWidthClass = computed(() => (props.size === 'lg' ? 'max-w-3xl' : 'max-w-lg'));
+const maxWidthClass = computed(() =>
+  props.size === '2xl' ? 'max-w-[1400px]' : props.size === 'xl' ? 'max-w-6xl' : props.size === 'lg' ? 'max-w-3xl' : 'max-w-lg'
+);
 
 const open = defineModel<boolean>({ default: false });
 

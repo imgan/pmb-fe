@@ -3,6 +3,7 @@ import { onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import RowActions from '@/components/ui/RowActions.vue';
@@ -10,6 +11,7 @@ import AppButton from '@/components/ui/AppButton.vue';
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
 import Modal from '@/components/ui/Modal.vue';
 import TextInput from '@/components/ui/TextInput.vue';
+import TextareaInput from '@/components/ui/TextareaInput.vue';
 import DateInput from '@/components/ui/DateInput.vue';
 import CheckboxToggle from '@/components/ui/CheckboxToggle.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
@@ -21,7 +23,9 @@ import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
 import type { KaryawanGenderSummary } from '@/types/entities';
 
-const { canCreate, canUpdate, canDelete } = usePermission(MENU.KARYAWAN_MANAGEMENT);
+// Halaman ini juga dipakai Modul Admin → Master, dengan kode menu Admin sebagai sumber hak akses.
+const props = withDefaults(defineProps<{ menuCode?: string }>(), { menuCode: MENU.KARYAWAN_MANAGEMENT });
+const { canCreate, canUpdate, canDelete } = usePermission(props.menuCode);
 
 const genderSummary = ref<KaryawanGenderSummary>({ lakiLaki: 0, perempuan: 0 });
 const loadGenderSummary = async () => {
@@ -39,6 +43,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -252,6 +257,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="items"
@@ -310,7 +319,7 @@ const handleSubmit = async () => {
           <TextInput v-model="form.telpHp" label="No HP" />
           <TextInput v-model="form.email" label="Email" type="email" />
         </div>
-        <TextInput v-model="form.alamat" label="Alamat" />
+        <TextareaInput v-model="form.alamat" label="Alamat" :rows="3" />
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model="form.status" label="Status Kepegawaian" placeholder="mis. Tetap, Kontrak" />
           <DateInput v-model="form.tmt" label="TMT (Tanggal Mulai Tugas)" />

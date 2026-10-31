@@ -27,18 +27,19 @@ const error = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    const { data } = await jurusanApi.list({ limit: 200 });
+    const { data } = await jurusanApi.listProdi({ limit: 200 });
     const uniqueNames = [...new Set(data.map((j) => j.namaJurusan))].sort((a, b) => a.localeCompare(b));
     prodiOptions.value = uniqueNames.map((nama) => ({ value: nama, label: nama }));
   } catch {
     prodiOptions.value = [];
   }
   try {
-    const { data } = await mataKuliahApi.list({ limit: 500 });
-    mataKuliahOptions.value = data
-      .slice()
-      .sort((a, b) => a.kodeMk.localeCompare(b.kodeMk))
-      .map((mk) => ({ value: mk.kodeMk, label: `${mk.kodeMk} - ${mk.namaMk}` }));
+    const { data } = await mataKuliahApi.list({ limit: 1000 });
+    // Kode yang sama bisa ada di beberapa kurikulum: satu opsi per kode.
+    const byKode = new Map(data.map((mk) => [mk.kode, mk]));
+    mataKuliahOptions.value = [...byKode.values()]
+      .sort((a, b) => a.kode.localeCompare(b.kode))
+      .map((mk) => ({ value: mk.kode, label: `${mk.kode} - ${mk.mataKuliah}` }));
   } catch {
     mataKuliahOptions.value = [];
   }

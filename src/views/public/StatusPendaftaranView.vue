@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import PublicHeader from '@/components/public/PublicHeader.vue';
 import PublicFooter from '@/components/public/PublicFooter.vue';
+import PesertaSidebar from '@/components/public/PesertaSidebar.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import StepProgress, { type ProgressStep } from '@/components/ui/StepProgress.vue';
 import { usePesertaAuthStore } from '@/stores/pesertaAuth';
@@ -32,10 +33,16 @@ const load = async () => {
 
 onMounted(load);
 
-const dokumenWajib = computed(() => dokumenList.value.filter((d) => d.isWajib));
-const dokumenWajibTerupload = computed(() => dokumenWajib.value.filter((d) => d.upload));
+// Sama dengan kolom Kelengkapan di menu Peserta (admin): semua Dokumen Pendaftaran, ditambah Dokumen Beasiswa bila
+// peserta memilih jalur beasiswa.
+const jalurBeasiswa = computed(() => !!pesertaAuthStore.peserta?.beasiswaId);
+const dokumenBerlaku = computed(() => dokumenList.value.filter((d) => !d.isBeasiswa || jalurBeasiswa.value));
+const dokumenTerupload = computed(() => dokumenBerlaku.value.filter((d) => d.upload));
 const kelengkapanDone = computed(
-  () => dokumenWajib.value.length > 0 && dokumenWajibTerupload.value.length === dokumenWajib.value.length
+  () => dokumenBerlaku.value.length > 0 && dokumenTerupload.value.length === dokumenBerlaku.value.length
+);
+const linkUpload = computed(() =>
+  dokumenBerlaku.value.some((d) => !d.upload && !d.isBeasiswa) ? '/pendaftaran/dokumen' : '/pendaftaran/dokumen-beasiswa'
 );
 
 const steps = computed<ProgressStep[]>(() => {
@@ -56,7 +63,7 @@ const steps = computed<ProgressStep[]>(() => {
       label: 'Kelengkapan Dokumen',
       state: kelengkapanState,
       icon: kelengkapanState === 'done' ? 'check' : 'more_horiz',
-      hint: `${dokumenWajibTerupload.value.length}/${dokumenWajib.value.length} wajib`,
+      hint: `${dokumenTerupload.value.length}/${dokumenBerlaku.value.length} dokumen`,
     },
     {
       key: 'ujian',
@@ -90,39 +97,42 @@ const handleLogout = () => {
   <div class="min-h-screen flex flex-col bg-surface">
     <PublicHeader />
 
-    <main class="flex-1 w-full max-w-3xl mx-auto px-4 md:px-12 py-12 md:py-16">
-      <div class="text-center mb-10">
+    <!-- Grid: judul di atas kolom isi, menu kiri & isi mulai di garis yang sama. -->
+    <div class="flex-1 w-full max-w-6xl mx-auto px-4 md:px-12 py-10 md:py-16 grid md:grid-cols-[15rem_minmax(0,1fr)] gap-x-10 gap-y-6 md:gap-y-0 content-start">
+      <div class="md:col-start-2 w-full max-w-3xl text-center md:mb-10">
         <h1 class="text-headline-lg-mobile md:text-headline-lg font-semibold text-primary mb-3">Status Pendaftaran</h1>
         <p class="text-body-md text-on-surface-variant max-w-xl mx-auto">
           Pantau progres pendaftaran PMB Anda dari tahap ke tahap.
         </p>
       </div>
-
-      <div v-if="loading" class="text-center py-16 text-on-surface-variant">Memuat data...</div>
-      <div v-else-if="loadError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
-        {{ loadError }}
-      </div>
-
-      <div v-else class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6 md:p-8">
-        <div class="flex items-center justify-between mb-6">
-          <p class="text-label-sm text-on-surface-variant">Progress Pendaftaran</p>
-          <StatusBadge :label="summary.label" :variant="summary.variant" />
+      <PesertaSidebar class="md:row-start-2 self-start" />
+      <main class="md:row-start-2 min-w-0 w-full max-w-3xl">
+        <div v-if="loading" class="text-center py-16 text-on-surface-variant">Memuat data...</div>
+        <div v-else-if="loadError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
+          {{ loadError }}
         </div>
 
-        <StepProgress :steps="steps" />
+        <div v-else class="bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-6 md:p-8">
+          <div class="flex items-center justify-between mb-6">
+            <p class="text-label-sm text-on-surface-variant">Progress Pendaftaran</p>
+            <StatusBadge :label="summary.label" :variant="summary.variant" />
+          </div>
 
-        <div v-if="!kelengkapanDone" class="mt-8 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-body-sm">
-          Lengkapi dokumen wajib Anda untuk melanjutkan proses seleksi.
-          <RouterLink to="/pendaftaran/dokumen" class="font-semibold underline hover:no-underline">Upload sekarang</RouterLink>
+          <StepProgress :steps="steps" />
+
+          <div v-if="!kelengkapanDone" class="mt-8 px-4 py-3 rounded-lg bg-warning-container text-on-warning-container text-body-sm">
+            Lengkapi dokumen Anda untuk melanjutkan proses seleksi.
+            <RouterLink :to="linkUpload" class="font-semibold underline hover:no-underline">Upload sekarang</RouterLink>
+          </div>
         </div>
-      </div>
 
-      <p class="text-center mt-8">
-        <button type="button" class="text-body-sm text-on-surface-variant hover:text-error transition-colors" @click="handleLogout">
-          Keluar dari akun
-        </button>
-      </p>
-    </main>
+        <p class="text-center mt-8">
+          <button type="button" class="text-body-sm text-on-surface-variant hover:text-error transition-colors" @click="handleLogout">
+            Keluar dari akun
+          </button>
+        </p>
+      </main>
+    </div>
 
     <PublicFooter />
   </div>

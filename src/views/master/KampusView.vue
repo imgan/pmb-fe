@@ -28,6 +28,7 @@ const form = reactive({
   facebookUrl: '',
   instagramUrl: '',
   youtubeUrl: '',
+  tiktokUrl: '',
   logoUrl: null as string | null,
   faviconUrl: null as string | null,
   websiteTitle: '',
@@ -49,6 +50,7 @@ const load = async () => {
         facebookUrl: kampus.facebookUrl ?? '',
         instagramUrl: kampus.instagramUrl ?? '',
         youtubeUrl: kampus.youtubeUrl ?? '',
+        tiktokUrl: kampus.tiktokUrl ?? '',
         logoUrl: kampus.logoUrl ?? null,
         faviconUrl: kampus.faviconUrl ?? null,
         websiteTitle: kampus.websiteTitle ?? '',
@@ -84,6 +86,7 @@ const handleSubmit = async () => {
       facebookUrl: form.facebookUrl.trim() || null,
       instagramUrl: form.instagramUrl.trim() || null,
       youtubeUrl: form.youtubeUrl.trim() || null,
+      tiktokUrl: form.tiktokUrl.trim() || null,
       logoUrl: form.logoUrl,
       faviconUrl: form.faviconUrl,
       websiteTitle: form.websiteTitle.trim() || null,
@@ -126,10 +129,11 @@ const handleSubmit = async () => {
         :disabled="!canUpdate"
       />
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5">
         <TextInput v-model="form.facebookUrl" label="Facebook URL" placeholder="https://facebook.com/..." :disabled="!canUpdate" />
         <TextInput v-model="form.instagramUrl" label="Instagram URL" placeholder="https://instagram.com/..." :disabled="!canUpdate" />
         <TextInput v-model="form.youtubeUrl" label="YouTube URL" placeholder="https://youtube.com/..." :disabled="!canUpdate" />
+        <TextInput v-model="form.tiktokUrl" label="TikTok URL" placeholder="https://www.tiktok.com/@..." :disabled="!canUpdate" />
       </div>
 
       <TextInput

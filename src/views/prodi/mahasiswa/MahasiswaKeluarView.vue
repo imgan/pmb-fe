@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -31,6 +32,7 @@ const STATUS_LABELS: Record<StatusKeluarMahasiswa, string> = {
   WAFAT: 'Wafat',
   HILANG: 'Hilang',
   LAINNYA: 'Lainnya',
+  MENUNGGU_UKOM: 'Menunggu Ukom',
 };
 const statusOptions = STATUS_KELUAR_VALUES.map((v) => ({ value: v, label: STATUS_LABELS[v] }));
 
@@ -40,6 +42,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -94,7 +97,7 @@ const formatDate = (value: string | null) => {
 // Kandidat mahasiswa yang bisa ditandai keluar: aktif & belum punya status keluar.
 const activeMahasiswa = ref<Mahasiswa[]>([]);
 onMounted(async () => {
-  const result = await mahasiswaApi.list({ page: 1, limit: 500, isActive: true });
+  const result = await mahasiswaApi.list({ page: 1, limit: 1000, isActive: true });
   activeMahasiswa.value = result.data.filter((m) => !m.statusKeluar);
 });
 const mahasiswaOptions = computed(() =>
@@ -172,6 +175,10 @@ const handleSubmit = async () => {
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
 
       <DataTable
         :columns="columns"

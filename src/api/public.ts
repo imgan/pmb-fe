@@ -11,6 +11,7 @@ import type {
   Jurusan,
   Kampus,
   Menu,
+  SumberInformasi,
 } from '@/types/entities';
 
 export const publicApi = {
@@ -36,6 +37,10 @@ export const publicApi = {
   },
   async beasiswaList(): Promise<Beasiswa[]> {
     const { data } = await http.get<ApiResponse<Beasiswa[]>>('/public/beasiswa');
+    return data.data;
+  },
+  async sumberInformasi(): Promise<SumberInformasi[]> {
+    const { data } = await http.get<ApiResponse<SumberInformasi[]>>('/public/sumber-informasi');
     return data.data;
   },
   async beasiswaDetail(slug: string): Promise<Beasiswa> {

@@ -6,8 +6,12 @@ import AppButton from '@/components/ui/AppButton.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import { laporanKeuanganApi } from '@/api/laporanKeuangan';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
+import axios from 'axios';
 import { extractErrorMessage } from '@/api/http';
+import { openBlob } from '@/utils/download';
+import { toastError } from '@/utils/swal';
 import type { LaporanTunggakanRow } from '@/types/entities';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 interface Option {
   value: string | number;
@@ -24,11 +28,11 @@ const error = ref<string | null>(null);
 
 onMounted(async () => {
   try {
-    const { data } = await tahunAjaranApi.list({ limit: 200 });
+    const { data } = await tahunAjaranApi.list({ limit: 200, isActive: true });
     tahunAjaranOptions.value = data
       .slice()
       .sort((a, b) => b.tahunMulai - a.tahunMulai)
-      .map((ta) => ({ value: ta.id, label: `${ta.nama} - ${ta.jenisSemester}` }));
+      .map((ta) => ({ value: ta.id, label: `${formatTahunAjaran(ta)}` }));
     const active = data.find((ta) => ta.isActive);
     if (active) selectedTahunAjaran.value = active.id;
   } catch {
@@ -57,6 +61,28 @@ const columns: DataTableColumn[] = [
   { key: 'prodi', label: 'Prodi' },
 ];
 
+// Cetak bukti bebas tunggakan (lampiran sidang) per mahasiswa.
+const printingId = ref<number | null>(null);
+const cetak = async (mahasiswaId: number) => {
+  printingId.value = mahasiswaId;
+  try {
+    openBlob(await laporanKeuanganApi.bebasTunggakanPdf(mahasiswaId));
+  } catch (err) {
+    // Respons error dari request blob berupa Blob JSON.
+    let pesan: string | null = null;
+    if (axios.isAxiosError(err) && err.response?.data instanceof Blob) {
+      try {
+        pesan = JSON.parse(await err.response.data.text())?.message ?? null;
+      } catch {
+        pesan = null;
+      }
+    }
+    toastError(pesan ?? extractErrorMessage(err, 'Gagal mencetak bukti bebas tunggakan'));
+  } finally {
+    printingId.value = null;
+  }
+};
+
 const displayRows = computed(() => rows.value.map((r, i) => ({ ...r, id: r.mahasiswaId, no: i + 1 })));
 </script>
 
@@ -78,8 +104,13 @@ const displayRows = computed(() => rows.value.map((r, i) => ({ ...r, id: r.mahas
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
-      <DataTable :columns="columns" :items="displayRows" :loading="loading" :show-actions="false" empty-message="Belum ada mahasiswa yang bebas tunggakan untuk filter ini">
+      <DataTable :columns="columns" :items="displayRows" :loading="loading" empty-message="Belum ada mahasiswa yang bebas tunggakan untuk filter ini">
         <template #cell-nama="{ item }">{{ item.namaLengkap }}</template>
+        <template #actions="{ item }">
+          <AppButton variant="secondary" icon="print" :disabled="printingId === item.mahasiswaId" @click="cetak(item.mahasiswaId)">
+            {{ printingId === item.mahasiswaId ? 'Membuka...' : 'Cetak Bebas Tunggakan' }}
+          </AppButton>
+        </template>
       </DataTable>
     </section>
   </div>

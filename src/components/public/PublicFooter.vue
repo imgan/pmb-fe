@@ -165,6 +165,18 @@ onMounted(async () => {
           >
             <span class="material-symbols-outlined">photo_camera</span>
           </a>
+          <a
+            v-if="kampusStore.kampus?.tiktokUrl"
+            class="w-10 h-10 rounded-full border border-on-primary/20 flex items-center justify-center hover:bg-on-primary/10 transition-all"
+            :href="kampusStore.kampus.tiktokUrl"
+            target="_blank"
+            rel="noopener"
+            aria-label="TikTok"
+          >
+            <svg viewBox="0 0 24 24" class="w-5 h-5" fill="currentColor" aria-hidden="true">
+              <path d="M16.6 5.82A4.28 4.28 0 0 1 15.54 3h-3.09v12.4a2.59 2.59 0 0 1-2.59 2.5 2.6 2.6 0 0 1-2.6-2.6 2.6 2.6 0 0 1 3.37-2.48V9.66a5.7 5.7 0 0 0-.77-.05A5.66 5.66 0 0 0 4.2 15.3 5.66 5.66 0 0 0 9.86 21a5.66 5.66 0 0 0 5.68-5.66V9.01a7.33 7.33 0 0 0 4.26 1.36V7.28a4.28 4.28 0 0 1-3.2-1.46Z" />
+            </svg>
+          </a>
         </div>
         <p class="text-body-sm opacity-70">
           {{ kampusStore.kampus?.namaKampus ?? 'Politeknik Bhakti Kartini' }} © {{ year }}. Seluruh hak cipta dilindungi.

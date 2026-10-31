@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import RowActions from '@/components/ui/RowActions.vue';
@@ -19,6 +20,7 @@ import { usePermission } from '@/composables/usePermission';
 import { toastError } from '@/utils/swal';
 import { MENU } from '@/constants/menuCodes';
 import type { TahunAjaran } from '@/types/entities';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.TAHUN_AJARAN_MANAGEMENT);
 
@@ -32,6 +34,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -195,6 +198,10 @@ const closeActivationResult = () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="items"
@@ -266,7 +273,7 @@ const closeActivationResult = () => {
     <ConfirmDialog
       :open="!!deleteTarget"
       title="Hapus Tahun Ajaran"
-      :message="`Yakin ingin menghapus tahun ajaran ${deleteTarget?.nama ?? ''}?`"
+      :message="`Yakin ingin menghapus tahun ajaran ${formatTahunAjaran(deleteTarget)}?`"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
@@ -275,7 +282,7 @@ const closeActivationResult = () => {
     <ConfirmDialog
       :open="!!activateTarget"
       title="Aktifkan Tahun Ajaran"
-      :message="`Aktifkan ${activateTarget?.nama ?? ''} (${activateTarget?.jenisSemester === 'GENAP' ? 'Genap' : 'Ganjil'})? Tahun ajaran lain akan dinonaktifkan, dan semester berjalan seluruh mahasiswa aktif otomatis naik mengikuti periode ini.`"
+      :message="`Aktifkan ${formatTahunAjaran(activateTarget)}? Tahun ajaran lain akan dinonaktifkan, dan semester berjalan seluruh mahasiswa aktif otomatis naik mengikuti periode ini.`"
       :loading="activating"
       @confirm="confirmActivate"
       @cancel="cancelActivate"
@@ -289,8 +296,7 @@ const closeActivationResult = () => {
     >
       <div v-if="activationResult" class="space-y-4">
         <p class="text-body-sm text-on-surface">
-          <strong>{{ activationResult.tahunAjaran.nama }}</strong>
-          ({{ activationResult.tahunAjaran.jenisSemester === 'GENAP' ? 'Genap' : 'Ganjil' }}) sekarang aktif.
+          <strong>{{ formatTahunAjaran(activationResult.tahunAjaran) }}</strong> sekarang aktif.
           Semester berjalan {{ activationResult.totalMahasiswaAktif }} mahasiswa aktif sudah otomatis naik
           mengikuti periode ini.
         </p>

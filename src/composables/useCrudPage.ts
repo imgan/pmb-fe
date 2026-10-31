@@ -17,6 +17,8 @@ export function useCrudPage<T extends { id: number }>(options: UseCrudPageOption
   const items = ref([]) as Ref<T[]>;
   const meta = ref<PagingMeta>({ ...emptyMeta });
   const page = ref(1);
+  /** Jumlah baris per halaman (dipilih lewat PageSizeSelect "Show N entries"). */
+  const limit = ref(options.pageSize ?? 10);
   const search = ref('');
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -36,7 +38,7 @@ export function useCrudPage<T extends { id: number }>(options: UseCrudPageOption
     try {
       const query: ListQuery = {
         page: page.value,
-        limit: options.pageSize ?? 10,
+        limit: limit.value,
         search: search.value || undefined,
         sortBy: sortBy.value || undefined,
         sortDir: sortBy.value ? sortDir.value : undefined,
@@ -63,6 +65,12 @@ export function useCrudPage<T extends { id: number }>(options: UseCrudPageOption
 
   watch(page, () => {
     fetchItems();
+  });
+
+  // Ganti jumlah baris: kembali ke halaman 1 (watch page yang fetch) atau fetch langsung bila sudah di halaman 1.
+  watch(limit, () => {
+    if (page.value !== 1) page.value = 1;
+    else fetchItems();
   });
 
   const handleSort = (key: string) => {
@@ -131,6 +139,7 @@ export function useCrudPage<T extends { id: number }>(options: UseCrudPageOption
     items,
     meta,
     page,
+    limit,
     search,
     loading,
     error,

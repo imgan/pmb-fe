@@ -1,15 +1,31 @@
 import { http } from './http';
 import type { ApiResponse } from '@/types/common';
-import type { LoginResult, MeResult, User } from '@/types/entities';
+import type { LoginResult, MeResult, ProdiOption, TahunAkademikOption, User } from '@/types/entities';
 
 export interface UpdateProfilePayload {
   name?: string;
   photo?: string | null;
 }
 
+export interface LoginContextPayload {
+  tahunAjaranId?: number | null;
+  module?: string;
+  kodeProdi?: string | null;
+}
+
 export const authApi = {
-  async login(username: string, password: string): Promise<LoginResult> {
-    const { data } = await http.post<ApiResponse<LoginResult>>('/auth/login', { username, password });
+  async login(username: string, password: string, context: LoginContextPayload = {}): Promise<LoginResult> {
+    const { data } = await http.post<ApiResponse<LoginResult>>('/auth/login', { username, password, ...context });
+    return data.data;
+  },
+  /**
+   * Pilihan Tahun Akademik & Prodi di form login (publik, tanpa token). `bawaan` = tahun default form login modul
+   * PMB / Keuangan (padanan Tahun Ajaran PMB / Keuangan aktif).
+   */
+  async loginOptions(): Promise<{ tahunAkademik: TahunAkademikOption[]; prodi: ProdiOption[]; bawaan?: { pmb: number | null; keuangan: number | null } }> {
+    const { data } = await http.get<ApiResponse<{ tahunAkademik: TahunAkademikOption[]; prodi: ProdiOption[]; bawaan?: { pmb: number | null; keuangan: number | null } }>>(
+      '/public/login-options'
+    );
     return data.data;
   },
   async me(): Promise<MeResult> {

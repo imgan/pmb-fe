@@ -8,9 +8,21 @@ import SelectInput from '@/components/ui/SelectInput.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
 import { jadwalKuliahApi } from '@/api/jadwalKuliah';
+import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { authApi } from '@/api/auth';
+import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 import { extractErrorMessage } from '@/api/http';
+import { useProdiContext } from '@/composables/useProdiContext';
 import type { HariKuliah, JadwalKuliah } from '@/types/entities';
 import type { PagingMeta } from '@/types/common';
+
+/**
+ * Master Monitoring jadwal kuliah: BAAK (semua prodi) & Prodi → Jadwal Kuliah → Monitoring Jadwal
+ * (`modul="prodi"`: filter prodi dikunci ke prodi sesi bila sudah dipilih saat login).
+ */
+const props = withDefaults(defineProps<{ modul?: 'baak' | 'prodi' }>(), { modul: 'baak' });
+const { prodi: prodiSesi, prodiLocked, tahunAjaranId: tahunAjaranSesi } = useProdiContext();
+const prodiTerkunci = computed(() => props.modul === 'prodi' && prodiLocked.value);
 
 const router = useRouter();
 
@@ -26,6 +38,12 @@ const HARI_LABEL: Record<HariKuliah, string> = {
 const programOptions = ref<{ value: string; label: string }[]>([]);
 const selectedProgram = ref('');
 const appliedProgram = ref('');
+// Filter Prodi & Tahun Ajaran (default: tahun ajaran aktif); berlaku saat klik Periksa.
+const prodiOptions = ref<{ value: string; label: string }[]>([]);
+const tahunAjaranOptions = ref<{ value: number; label: string }[]>([]);
+const selectedProdi = ref('');
+const selectedTahunAjaran = ref<number | ''>('');
+const applied = ref<{ kodeProdi: string; tahunAjaranId: number | '' }>({ kodeProdi: '', tahunAjaranId: '' });
 const search = ref('');
 
 const pageSizeOptions = [10, 25, 50, 100].map((n) => ({ value: n, label: String(n) }));
@@ -58,6 +76,7 @@ const columns: DataTableColumn[] = [
   { key: 'sksPraktik', label: 'Prak', align: 'center' },
   { key: 'sksLab', label: 'Lab', align: 'center' },
   { key: 'total', label: 'Total', align: 'center' },
+  { key: 'jumlahMahasiswa', label: 'Total Mahasiswa', align: 'center' },
   { key: 'detail', label: 'Detail', align: 'center' },
 ];
 
@@ -70,6 +89,9 @@ const fetchItems = async () => {
       limit: pageSize.value,
       search: search.value || undefined,
       kelas: appliedProgram.value || undefined,
+      kodeProdi: applied.value.kodeProdi || undefined,
+      tahunAjaranId: applied.value.tahunAjaranId || undefined,
+      withJumlahMahasiswa: true,
     });
     items.value = result.data;
     meta.value = result.meta;
@@ -82,12 +104,13 @@ const fetchItems = async () => {
 
 const handlePeriksa = () => {
   appliedProgram.value = selectedProgram.value;
+  applied.value = { kodeProdi: selectedProdi.value, tahunAjaranId: selectedTahunAjaran.value };
   page.value = 1;
   fetchItems();
 };
 
 const openDetail = (id: number) => {
-  router.push({ name: 'baak-monitoring-detail', params: { id } });
+  router.push({ name: props.modul === 'prodi' ? 'prodi-monitoring-jadwal-detail' : 'baak-monitoring-detail', params: { id } });
 };
 
 watch(page, fetchItems);
@@ -105,38 +128,89 @@ watch(search, () => {
   }, 350);
 });
 
-onMounted(async () => {
+/** Pilihan Program (kelas) mengikuti prodi & tahun ajaran yang sedang dipilih. */
+const loadProgramOptions = async () => {
   try {
-    const kelasList = await jadwalKuliahApi.kelasOptions();
+    let kelasList: string[];
+    if (selectedProdi.value || selectedTahunAjaran.value) {
+      const result = await jadwalKuliahApi.list({
+        limit: 1000,
+        kodeProdi: selectedProdi.value || undefined,
+        tahunAjaranId: selectedTahunAjaran.value || undefined,
+      });
+      kelasList = [...new Set(result.data.map((j) => j.kelas))].sort();
+    } else {
+      kelasList = await jadwalKuliahApi.kelasOptions();
+    }
     programOptions.value = kelasList.map((k) => ({ value: k, label: k }));
+    if (selectedProgram.value && !kelasList.includes(selectedProgram.value)) selectedProgram.value = '';
   } catch {
     programOptions.value = [];
   }
+};
+watch([selectedProdi, selectedTahunAjaran], loadProgramOptions);
+
+onMounted(async () => {
+  const [tahunAjaran, loginOptions] = await Promise.allSettled([tahunAjaranApi.list({ limit: 100 }), authApi.loginOptions()]);
+  if (tahunAjaran.status === 'fulfilled') {
+    tahunAjaranOptions.value = tahunAjaran.value.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
+    // Prodi: tahun akademik acuan sesi (kartu konteks), selain itu tahun ajaran aktif.
+    const aktif =
+      (props.modul === 'prodi' && tahunAjaranSesi ? tahunAjaran.value.data.find((t) => t.id === tahunAjaranSesi) : null) ??
+      tahunAjaran.value.data.find((t) => t.isActive);
+    if (aktif) {
+      selectedTahunAjaran.value = aktif.id;
+      applied.value = { ...applied.value, tahunAjaranId: aktif.id };
+    }
+  }
+  if (loginOptions.status === 'fulfilled') {
+    prodiOptions.value = loginOptions.value.prodi.map((p) => ({ value: p.kodeProdi, label: p.nama }));
+  }
+  if (prodiTerkunci.value && prodiSesi.value) {
+    selectedProdi.value = prodiSesi.value.kodeProdi;
+    applied.value = { ...applied.value, kodeProdi: prodiSesi.value.kodeProdi };
+  }
+  await loadProgramOptions();
   fetchItems();
+});
+
+const judulData = computed(() => {
+  const bagian = [
+    prodiOptions.value.find((p) => p.value === applied.value.kodeProdi)?.label,
+    tahunAjaranOptions.value.find((t) => t.value === applied.value.tahunAjaranId)?.label,
+    appliedProgram.value ? `Kelas ${appliedProgram.value}` : null,
+  ].filter(Boolean);
+  return bagian.length ? `Data Master Monitoring - ${bagian.join(' · ')}` : 'Semua Data Master Monitoring';
 });
 </script>
 
 <template>
   <div>
-    <PageHeader title="Master Monitoring" subtitle="Pantau jadwal perkuliahan per program/kelas." />
+    <PageHeader :title="modul === 'prodi' ? 'Monitoring Jadwal' : 'Master Monitoring'" subtitle="Pantau jadwal perkuliahan per program/kelas." />
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 bg-surface-bright">
         <div class="w-full md:w-64">
+          <SelectInput v-model="selectedProdi" placeholder="-- Semua Prodi --" :options="prodiOptions" :disabled="prodiTerkunci" />
+        </div>
+        <div class="w-full md:w-56">
+          <SelectInput v-model="selectedTahunAjaran" placeholder="-- Semua Tahun Ajaran --" :options="tahunAjaranOptions" />
+        </div>
+        <div class="w-full md:w-48">
           <SelectInput v-model="selectedProgram" placeholder="-- Pilih Program --" :options="programOptions" />
         </div>
         <AppButton icon="search" @click="handlePeriksa">Periksa</AppButton>
       </div>
 
       <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">
-        {{ appliedProgram ? `Data Master Monitoring - Kelas ${appliedProgram}` : 'Semua Data Master Monitoring' }}
+        {{ judulData }}
       </div>
 
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span>Show</span>
           <div class="w-20">
-            <SelectInput v-model="pageSize" :options="pageSizeOptions" />
+            <SelectInput v-model="pageSize" :options="pageSizeOptions" :clearable="false" />
           </div>
           <span>entries</span>
         </div>

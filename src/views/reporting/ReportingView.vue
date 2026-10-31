@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import AppButton from '@/components/ui/AppButton.vue';
@@ -14,6 +15,7 @@ import { pesertaApi } from '@/api/peserta';
 import { golonganKelasApi } from '@/api/golonganKelas';
 import { jurusanApi } from '@/api/jurusan';
 import { gelombangApi } from '@/api/gelombang';
+import { publicApi } from '@/api/public';
 import { extractErrorMessage } from '@/api/http';
 import { toastSuccess, toastError } from '@/utils/swal';
 import { formatDate } from '@/utils/format';
@@ -42,13 +44,13 @@ const loading = ref(true);
 const error = ref<string | null>(null);
 const allItems = ref<Peserta[]>([]);
 const page = ref(1);
-const pageSize = 10;
+const pageSize = ref(10);
 
 const meta = computed<PagingMeta>(() => ({
   total: allItems.value.length,
   page: page.value,
-  limit: pageSize,
-  totalPages: Math.ceil(allItems.value.length / pageSize) || 1,
+  limit: pageSize.value,
+  totalPages: Math.ceil(allItems.value.length / pageSize.value) || 1,
 }));
 const columns: DataTableColumn[] = [
   { key: 'namaLengkap', label: 'Nama', sortable: true },
@@ -98,7 +100,7 @@ const sortedItems = computed(() => {
   });
 });
 
-const pagedItems = computed(() => sortedItems.value.slice((page.value - 1) * pageSize, page.value * pageSize));
+const pagedItems = computed(() => sortedItems.value.slice((page.value - 1) * pageSize.value, page.value * pageSize.value));
 
 const handleSort = (key: string) => {
   if (sortBy.value === key) {
@@ -128,7 +130,20 @@ const statusKelulusanOptions = [
 ];
 
 const statusTarget = ref<Peserta | null>(null);
-const statusForm = reactive({ statusUjian: 'belum_ujian' as StatusUjian, statusKelulusan: 'menunggu' as StatusKelulusan });
+const statusForm = reactive({
+  statusUjian: 'belum_ujian' as StatusUjian,
+  statusKelulusan: 'menunggu' as StatusKelulusan,
+  jalur: 'mandiri' as number | 'mandiri',
+  sumberInformasiId: '' as number | '',
+});
+const jalurOptions = ref<{ value: number | 'mandiri'; label: string }[]>([]);
+const sumberInformasiOptions = ref<{ value: number; label: string }[]>([]);
+const loadPilihanPendaftaran = async () => {
+  if (jalurOptions.value.length) return;
+  const [beasiswa, sumber] = await Promise.all([publicApi.beasiswaList(), publicApi.sumberInformasi()]);
+  jalurOptions.value = [...beasiswa.map((b) => ({ value: b.id, label: b.namaBeasiswa })), { value: 'mandiri', label: 'Pembiayaan Mandiri' }];
+  sumberInformasiOptions.value = sumber.map((x) => ({ value: x.id, label: x.namaInformasi }));
+};
 const statusSubmitting = ref(false);
 const statusError = ref<string | null>(null);
 
@@ -136,7 +151,10 @@ const openStatusModal = (item: Peserta) => {
   statusTarget.value = item;
   statusForm.statusUjian = item.statusUjian;
   statusForm.statusKelulusan = item.statusKelulusan;
+  statusForm.jalur = item.beasiswaId ?? 'mandiri';
+  statusForm.sumberInformasiId = item.sumberInformasiId ?? '';
   statusError.value = null;
+  loadPilihanPendaftaran();
 };
 const closeStatusModal = () => {
   statusTarget.value = null;
@@ -149,6 +167,8 @@ const saveStatus = async () => {
     const updated = await pesertaApi.update(statusTarget.value.id, {
       statusUjian: statusForm.statusUjian,
       statusKelulusan: statusForm.statusKelulusan,
+      beasiswaId: statusForm.jalur === 'mandiri' ? null : Number(statusForm.jalur),
+      sumberInformasiId: statusForm.sumberInformasiId ? Number(statusForm.sumberInformasiId) : null,
     });
     const idx = allItems.value.findIndex((p) => p.id === updated.id);
     if (idx !== -1) allItems.value[idx] = updated;
@@ -194,6 +214,7 @@ const fetchReport = async () => {
 };
 
 watch(() => [filters.golonganKelasId, filters.jurusanId, filters.dateFrom, filters.dateTo], fetchReport);
+watch(pageSize, () => (page.value = 1));
 
 const onGolonganKelasChange = () => {
   filters.jurusanId = '';
@@ -290,7 +311,7 @@ const exportCsv = () => {
 onMounted(async () => {
   const [golonganKelasResult, jurusanResult, gelombangResult] = await Promise.all([
     golonganKelasApi.list({ limit: 100 }),
-    jurusanApi.list({ limit: 200 }),
+    jurusanApi.listProdi({ limit: 200 }),
     gelombangApi.list({ limit: 100 }),
   ]);
   golonganKelasOptions.value = golonganKelasResult.data.map((g: GolonganKelas) => ({ value: g.id, label: g.namaKelas }));
@@ -415,6 +436,10 @@ onMounted(async () => {
         <h2 class="font-semibold text-headline-md text-on-surface">Detail Pendaftar</h2>
       </div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="pagedItems"
@@ -463,6 +488,8 @@ onMounted(async () => {
         </div>
         <SelectInput v-model="statusForm.statusUjian" label="Status Ujian" :options="statusUjianOptions" />
         <SelectInput v-model="statusForm.statusKelulusan" label="Status Kelulusan" :options="statusKelulusanOptions" />
+        <SelectInput v-model="statusForm.jalur" label="Jalur Pendaftaran" :options="jalurOptions" :clearable="false" />
+        <SelectInput v-model="statusForm.sumberInformasiId" label="Tahu Kampus Dari" placeholder="Belum diisi" :options="sumberInformasiOptions" />
         <p class="text-label-sm text-on-surface-variant">
           Status ini akan tampil sebagai progress pendaftaran ("Ujian" dan "Pengumuman Kelulusan") di halaman status peserta.
         </p>

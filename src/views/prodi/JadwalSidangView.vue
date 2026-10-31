@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import TextInput from '@/components/ui/TextInput.vue';
@@ -20,6 +21,7 @@ import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
 import type { Dosen, JadwalSidang, Jurusan, SemesterGanjilGenap, TahunAjaran } from '@/types/entities';
+import { formatTahunAjaran, withCurrentTahunAjaran } from '@/utils/tahunAjaranOptions';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.PRODI_JADWAL_SIDANG_MANAGEMENT);
 
@@ -36,8 +38,8 @@ const loadingOptions = ref(true);
 onMounted(async () => {
   try {
     const [tahunAjaranResult, jurusanResult, dosenResult] = await Promise.all([
-      tahunAjaranApi.list({ page: 1, limit: 100 }),
-      jurusanApi.list({ page: 1, limit: 100 }),
+      tahunAjaranApi.list({ page: 1, limit: 100, isActive: true }),
+      jurusanApi.listProdi({ page: 1, limit: 100 }),
       dosenApi.list({ page: 1, limit: 500 }),
     ]);
     tahunAjaranList.value = tahunAjaranResult.data;
@@ -64,6 +66,7 @@ const {
   items,
   meta,
   page,
+  limit,
   search,
   loading,
   error,
@@ -223,6 +226,10 @@ const handleSubmit = async () => {
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="limit" />
+      </div>
+
       <DataTable
         :columns="columns"
         :items="rows"
@@ -262,7 +269,7 @@ const handleSubmit = async () => {
             required
             :error="errors.tahunAjaranId"
             placeholder="Pilih tahun ajaran..."
-            :options="tahunAjaranList.map((t) => ({ value: t.id, label: t.nama }))"
+            :options="withCurrentTahunAjaran(tahunAjaranList.map((t) => ({ value: t.id, label: formatTahunAjaran(t) })), editingItem?.tahunAjaran)"
           />
           <SelectInput
             v-model="form.semester"

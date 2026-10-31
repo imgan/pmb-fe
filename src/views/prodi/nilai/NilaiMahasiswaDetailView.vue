@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { nilaiMahasiswaApi } from '@/api/nilaiMahasiswa';
 import { extractErrorMessage } from '@/api/http';
@@ -15,6 +16,7 @@ const mahasiswa = ref<NilaiMahasiswaMahasiswa | null>(null);
 const items = ref<NilaiMahasiswaEntry[]>([]);
 const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const page = ref(1);
+const pageSize = ref(10);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
@@ -48,7 +50,7 @@ const fetchNilai = async () => {
   try {
     const result = await nilaiMahasiswaApi.getNilaiByMahasiswa(props.mahasiswaId, {
       page: page.value,
-      limit: 10,
+      limit: pageSize.value,
       sortBy: sortBy.value || undefined,
       sortDir: sortBy.value ? sortDir.value : undefined,
     });
@@ -74,6 +76,10 @@ const handleSort = (key: string) => {
 };
 
 watch(page, fetchNilai);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchNilai();
+});
 
 onMounted(fetchNilai);
 </script>
@@ -105,6 +111,10 @@ onMounted(fetchNilai);
         <span class="text-on-surface">: {{ mahasiswa.namaLengkap }}</span>
         <span class="text-on-surface-variant">Program Studi</span>
         <span class="text-on-surface">: {{ mahasiswa.programStudi ?? '-' }}</span>
+      </div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
       </div>
 
       <DataTable

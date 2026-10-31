@@ -1,5 +1,5 @@
 import { http } from './http';
-import type { ApiResponse, ListQuery, ListResult, PagingMeta } from '@/types/common';
+import type { ApiResponse, ImportResult, ListQuery, ListResult, PagingMeta } from '@/types/common';
 import type { NilaiMahasiswaDetail, NilaiMahasiswaEntry, NilaiMahasiswaMahasiswa, SemesterSummaryItem } from '@/types/entities';
 
 interface NilaiMahasiswaDetailResponse extends ApiResponse<NilaiMahasiswaDetail> {
@@ -33,6 +33,15 @@ export const nilaiMahasiswaApi = {
     return { mahasiswa: data.data.mahasiswa, nilai: data.data.nilai, meta: data.meta };
   },
 
+  /** Import nilai format "Nilai" PDDikti Feeder (NIM, Kode MK, Semester 20251/20252, Nilai Huruf, Nilai Angka, ...). */
+  async importExcel(file: string): Promise<ImportResult> {
+    const { data } = await http.post<ApiResponse<ImportResult>>('/nilai-mahasiswa/import', { file });
+    return data.data;
+  },
+  async importTemplate(): Promise<Blob> {
+    const { data } = await http.get('/nilai-mahasiswa/import-template', { responseType: 'blob' });
+    return data;
+  },
   async semesterSummary(): Promise<SemesterSummaryItem[]> {
     const { data } = await http.get<ApiResponse<SemesterSummaryItem[]>>('/nilai-mahasiswa/semester-summary');
     return data.data;

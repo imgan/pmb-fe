@@ -3,9 +3,11 @@ import { computed, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
+import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
 import TextInput from '@/components/ui/TextInput.vue';
 import DateInput from '@/components/ui/DateInput.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import { ukuranAlmamaterOptions } from '@/utils/almamater';
 import AppButton from '@/components/ui/AppButton.vue';
 import Modal from '@/components/ui/Modal.vue';
 import { biodataMahasiswaApi } from '@/api/biodataMahasiswa';
@@ -30,6 +32,7 @@ const appliedNim = ref('');
 const items = ref<BiodataMahasiswaItem[]>([]);
 const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
 const page = ref(1);
+const pageSize = ref(10);
 const loading = ref(true);
 const error = ref<string | null>(null);
 
@@ -37,7 +40,7 @@ const fetchItems = async () => {
   loading.value = true;
   error.value = null;
   try {
-    const result = await biodataMahasiswaApi.list({ page: page.value, limit: 10, nim: appliedNim.value || undefined });
+    const result = await biodataMahasiswaApi.list({ page: page.value, limit: pageSize.value, nim: appliedNim.value || undefined });
     items.value = result.data;
     meta.value = result.meta;
   } catch (err) {
@@ -54,6 +57,10 @@ const handlePeriksa = () => {
 };
 
 watch(page, fetchItems);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
 fetchItems();
 
 const columns: DataTableColumn[] = [
@@ -218,8 +225,18 @@ const closeBiodata = () => {
   biodataTarget.value = null;
 };
 
+// No KPS hanya tampil & wajib kalau "Terima KPS" = Ya.
+const noKpsError = ref<string | null>(null);
+
 const handleSaveBiodata = async () => {
   if (!biodataTarget.value) return;
+  noKpsError.value = null;
+  if (biodataForm.terimaKps !== 'Ya') biodataForm.noKps = '';
+  else if (!biodataForm.noKps.trim()) {
+    noKpsError.value = 'No KPS wajib diisi untuk penerima KPS';
+    toastError(noKpsError.value);
+    return;
+  }
   biodataSubmitting.value = true;
   biodataError.value = null;
   try {
@@ -256,6 +273,10 @@ const handleSaveBiodata = async () => {
       <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">Semua Data Biodata Mahasiswa</div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
+
+      <div class="px-4 py-3 border-b border-outline-variant">
+        <PageSizeSelect v-model="pageSize" />
+      </div>
 
       <DataTable :columns="columns" :items="rows" :loading="loading" empty-message="Belum ada data mahasiswa">
         <template #cell-jenisKelamin="{ item }">{{ item.biodata?.jenisKelamin ?? '-' }}</template>
@@ -387,7 +408,7 @@ const handleSaveBiodata = async () => {
           <TextInput v-model="biodataForm.hp" label="No HP" />
           <TextInput v-model="biodataForm.teleponRumah" label="Telp Rumah" />
         </div>
-        <TextInput v-model="biodataForm.almamater" label="Almamater" />
+        <SelectInput v-model="biodataForm.almamater" label="Almamater (Ukuran)" placeholder="Pilih ukuran..." :options="ukuranAlmamaterOptions(biodataForm.almamater)" />
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <SelectInput
@@ -396,7 +417,13 @@ const handleSaveBiodata = async () => {
             placeholder="Pilih..."
             :options="[{ value: 'Ya', label: 'Ya' }, { value: 'Tidak', label: 'Tidak' }]"
           />
-          <TextInput v-model="biodataForm.noKps" label="No KPS" />
+          <TextInput
+            v-if="biodataForm.terimaKps === 'Ya'"
+            v-model="biodataForm.noKps"
+            label="No KPS"
+            required
+            :error="noKpsError"
+          />
         </div>
 
         <div class="pt-2 border-t border-outline-variant">

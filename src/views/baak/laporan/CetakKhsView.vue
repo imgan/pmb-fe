@@ -42,8 +42,11 @@ const columns: DataTableColumn[] = [
   { key: 'nilaiSemester', label: 'Nilai Semester' },
 ];
 
-const selectedSemester = reactive<Record<number, number | ''>>({});
-const semesterOptionsFor = (item: KhsMahasiswaItem) => item.semesterOptions.map((s) => ({ value: s, label: String(s) }));
+const selectedSemester = reactive<Record<number, number | 'semua' | ''>>({});
+const semesterOptionsFor = (item: KhsMahasiswaItem) => [
+  ...item.semesterOptions.map((s) => ({ value: s, label: String(s) })),
+  ...(item.semesterOptions.length > 1 ? [{ value: 'semua', label: 'Semua' }] : []),
+];
 
 const fetchItems = async () => {
   loading.value = true;
@@ -103,7 +106,7 @@ const handleCetak = async (item: KhsMahasiswaItem) => {
   }
   printingId.value = item.id;
   try {
-    const blob = await laporanKhsApi.cetakPdf(item.id, Number(semester));
+    const blob = await laporanKhsApi.cetakPdf(item.id, semester === 'semua' ? 'semua' : Number(semester));
     openBlob(blob);
   } catch (err) {
     toastError(extractErrorMessage(err, 'Gagal membuka dokumen KHS'));
@@ -132,7 +135,7 @@ const handleCetak = async (item: KhsMahasiswaItem) => {
         <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span>Show</span>
           <div class="w-20">
-            <SelectInput v-model="pageSize" :options="pageSizeOptions" />
+            <SelectInput v-model="pageSize" :options="pageSizeOptions" :clearable="false" />
           </div>
           <span>entries</span>
         </div>

@@ -13,11 +13,14 @@ withDefaults(
 );
 
 const model = defineModel<string | null | undefined>({ default: null });
+/** Opsional: nama file yang dipilih (mis. untuk dicatat di riwayat import). */
+const fileName = defineModel<string | null>('fileName', { default: null });
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const onFileChange = (event: Event) => {
   const file = (event.target as HTMLInputElement).files?.[0];
   if (!file) return;
+  fileName.value = file.name;
 
   const reader = new FileReader();
   reader.onload = () => {
@@ -28,6 +31,7 @@ const onFileChange = (event: Event) => {
 
 const clearFile = () => {
   model.value = null;
+  fileName.value = null;
   if (fileInputRef.value) fileInputRef.value.value = '';
 };
 </script>

@@ -20,6 +20,9 @@ import { MENU } from '@/constants/menuCodes';
 import { toastError, toastSuccess } from '@/utils/swal';
 import type { Yudisium } from '@/types/entities';
 import type { PagingMeta } from '@/types/common';
+import { useProdiContext } from '@/composables/useProdiContext';
+
+const { prodiLocked, prodiPlaceholder } = useProdiContext();
 
 const { canUpdate } = usePermission(MENU.PRODI_YUDISIUM_MANAGEMENT);
 
@@ -98,7 +101,7 @@ watch(search, () => {
 
 onMounted(async () => {
   try {
-    const result = await jurusanApi.list({ limit: 100 });
+    const result = await jurusanApi.listProdi({ limit: 100 });
     jurusanOptions.value = result.data.map((j) => ({ value: j.id, label: j.namaJurusan.toUpperCase() }));
   } catch {
     jurusanOptions.value = [];
@@ -179,7 +182,7 @@ const handleSubmit = async () => {
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 bg-surface-bright">
         <div class="w-full md:w-64">
-          <SelectInput v-model="selectedJurusan" placeholder="-- Pilih Program --" :options="jurusanOptions" />
+          <SelectInput v-model="selectedJurusan" :placeholder="prodiPlaceholder('-- Pilih Program --')" :disabled="prodiLocked" :options="jurusanOptions" />
         </div>
         <div class="w-full md:w-64">
           <TextInput v-model="nimInput" placeholder="Nomor Induk Mahasiswa" @keyup.enter="handlePeriksa" />
@@ -195,7 +198,7 @@ const handleSubmit = async () => {
         <div class="flex items-center gap-2 text-body-sm text-on-surface-variant">
           <span>Show</span>
           <div class="w-20">
-            <SelectInput v-model="pageSize" :options="pageSizeOptions" />
+            <SelectInput v-model="pageSize" :options="pageSizeOptions" :clearable="false" />
           </div>
           <span>entries</span>
         </div>

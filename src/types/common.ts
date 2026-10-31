@@ -32,4 +32,6 @@ export interface ImportResult {
   successCount: number;
   errorCount: number;
   errors: ImportError[];
+  /** Catatan yang tidak menggagalkan baris (mis. data dilengkapi otomatis). row null = catatan umum. */
+  warnings?: { row: number | null; message: string }[];
 }

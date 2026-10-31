@@ -11,6 +11,31 @@ export const dosenTokenStorage = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
+/**
+ * Tahun akademik pilihan dosen (Profil → Setting Tahun Akademik), dikirim sebagai header
+ * X-Tahun-Ajaran-Id: daftar kelas/realisasi/silabus/KRS bimbingan & dashboard mengikuti tahun ini.
+ * null = semua tahun akademik (dashboard memakai tahun ajaran aktif).
+ */
+const TAHUN_AKADEMIK_KEY = 'pmb_dosen_tahun_akademik';
+export interface DosenTahunAkademik {
+  id: number;
+  label: string;
+}
+export const dosenTahunAkademikStorage = {
+  get: (): DosenTahunAkademik | null => {
+    try {
+      const raw = localStorage.getItem(TAHUN_AKADEMIK_KEY);
+      return raw ? (JSON.parse(raw) as DosenTahunAkademik) : null;
+    } catch {
+      return null;
+    }
+  },
+  set: (value: DosenTahunAkademik | null) => {
+    if (value) localStorage.setItem(TAHUN_AKADEMIK_KEY, JSON.stringify(value));
+    else localStorage.removeItem(TAHUN_AKADEMIK_KEY);
+  },
+};
+
 export const dosenHttp = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
 });
@@ -20,6 +45,8 @@ dosenHttp.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
+  const tahunAkademik = dosenTahunAkademikStorage.get();
+  if (tahunAkademik) config.headers.set('X-Tahun-Ajaran-Id', String(tahunAkademik.id));
   return config;
 });
 
