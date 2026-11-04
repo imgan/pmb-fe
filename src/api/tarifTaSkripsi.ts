@@ -5,7 +5,7 @@ import type { TarifTaSkripsi } from '@/types/entities';
 
 export interface TarifTaSkripsiPayload {
   periode: number;
-  tahunAjaranId: number;
+  tahunTaSkripsiId: number;
   jurusanId: number;
   biayaPendaftaran: number;
   biayaPerpanjangan?: number;

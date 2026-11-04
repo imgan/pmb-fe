@@ -28,7 +28,9 @@ import { MENU } from '@/constants/menuCodes';
 import type { EligibleSummaryItem, Mahasiswa, StatusMasukMahasiswa } from '@/types/entities';
 import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 
-const { canCreate, canUpdate, canDelete } = usePermission(MENU.MAHASISWA_MANAGEMENT);
+// Halaman ini juga dipakai Modul Admin → Master, dengan kode menu Admin sebagai sumber hak akses.
+const props = withDefaults(defineProps<{ menuCode?: string }>(), { menuCode: MENU.MAHASISWA_MANAGEMENT });
+const { canCreate, canUpdate, canDelete } = usePermission(props.menuCode);
 
 const STATUS_MASUK_OPTIONS: { value: StatusMasukMahasiswa; label: string }[] = [
   { value: 'BARU', label: 'Baru' },

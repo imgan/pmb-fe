@@ -14,10 +14,31 @@ export interface JurusanPayload {
   namaFakultas?: string | null;
 }
 
+/** Master Jurusan / Prodi: satu prodi dengan banyak golongan kelas. */
+export interface ProdiGrup {
+  /** Id salah satu baris jurusan prodi ini. */
+  id: number;
+  namaJurusan: string;
+  kodeProdi: string | null;
+  singkatan: string | null;
+  foto: string | null;
+  prospekKarir: string | null;
+  jenjangPendidikan: string | null;
+  gelarSingkat: string | null;
+  gelarLengkap: string | null;
+  namaFakultas: string | null;
+  /** dipakai = jumlah data di modul lain; yang masih dipakai tidak bisa dilepas. */
+  golongan: { jurusanId: number; golonganKelasId: number; namaKelas: string; dipakai: number }[];
+}
+
+export type ProdiGrupPayload = Omit<ProdiGrup, 'id' | 'golongan'> & { golonganKelasIds: number[] };
+
 const baseApi = createCrudApi<Jurusan, JurusanPayload, Partial<JurusanPayload>>('jurusan');
+const grupApi = createCrudApi<ProdiGrup, ProdiGrupPayload, ProdiGrupPayload>('jurusan/grup');
 
 export const jurusanApi = {
   ...baseApi,
+  grup: grupApi,
 
   /**
    * Satu baris per prodi (kode prodi) untuk dropdown akademik. Tabel jurusan menyimpan prodi per

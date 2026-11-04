@@ -1544,8 +1544,12 @@ export interface PerpanjanganTaSkripsi {
 export interface PembayaranTaSkripsi {
   id: number;
   mahasiswaId: number;
+  /** Tagihan hasil Generate Tagihan (null = pembayaran lama tanpa tagihan). */
+  tagihanTaSkripsiId?: number | null;
   mahasiswa?: Mahasiswa;
   periode: number;
+  /** Semester mahasiswa saat pembayaran dicatat. */
+  semester?: number | null;
   tanggalBayar: string;
   noBukti: string;
   nominal: number;
@@ -1564,7 +1568,10 @@ export interface LaporanTunggakanRow {
   tunggakanManual: number;
   tagihanTaSkripsisSisa: number;
   tagihanBiayaLainSisa: number;
+  tagihanWisudaSisa: number;
   totalTunggakan: number;
+  /** Ada utang semester lalu / tunggakan manual / lewat jatuh tempo. */
+  menunggak: boolean;
 }
 
 export interface RingkasanTaSkripsiJenis {
@@ -1634,6 +1641,7 @@ export interface LaporanTunggakanJurusanRow {
   tagihanSisa: number;
   tagihanTaSkripsisSisa: number;
   tagihanBiayaLainSisa: number;
+  tagihanWisudaSisa: number;
   tunggakanManual: number;
   totalTunggakan: number;
 }
@@ -1740,8 +1748,8 @@ export interface NeracaData {
 export interface TarifTaSkripsi {
   id: number;
   periode: number;
-  tahunAjaranId: number | null;
-  tahunAjaran?: Pick<TahunAjaran, 'id' | 'nama' | 'jenisSemester'> | null;
+  tahunTaSkripsiId: number | null;
+  tahunTaSkripsi?: Pick<TahunModul, 'id' | 'nama' | 'jenisSemester'> | null;
   jurusanId: number;
   jurusan?: Jurusan;
   biayaPendaftaran: number;

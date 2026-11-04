@@ -6,6 +6,8 @@ import { useDosenAuthStore } from '@/stores/dosenAuth';
 import { useMahasiswaAuthStore } from '@/stores/mahasiswaAuth';
 import { MENU } from '@/constants/menuCodes';
 import { FEEDER_ENTITIES } from '@/constants/feederEntities';
+import { STAFF_MODULES, type StaffModuleKey } from '@/constants/staffModules';
+import { staffModuleStorage } from '@/api/http';
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -1390,6 +1392,13 @@ const routes: RouteRecordRaw[] = [
         meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_TA_SKRIPSI_MANAGEMENT },
       },
       {
+        path: 'transaksi/pembayaran-ta-skripsi/:mahasiswaId',
+        name: 'keuangan-pembayaran-ta-skripsi-detail',
+        component: () => import('@/views/keuangan/transaksi/PembayaranTaSkripsiDetailView.vue'),
+        meta: { menuCode: MENU.KEUANGAN_PEMBAYARAN_TA_SKRIPSI_MANAGEMENT },
+        props: true,
+      },
+      {
         path: 'transaksi/perpanjangan-ta-skripsi',
         name: 'keuangan-perpanjangan-ta-skripsi',
         component: () => import('@/views/keuangan/transaksi/PerpanjanganTaSkripsiView.vue'),
@@ -1526,11 +1535,20 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
-        path: 'tahun-ajaran',
-        name: 'tahun-ajaran',
-        component: () => import('@/views/baak/TahunAjaranView.vue'),
+        // Semua pengaturan tahun: satu halaman bertab (?tab=akademik | pmb | keuangan | frs | ta-skripsi | sp).
+        path: 'tahun',
+        name: 'tahun',
+        component: () => import('@/views/admin/master/TahunView.vue'),
         meta: { menuCode: MENU.TAHUN_AJARAN_MANAGEMENT },
       },
+      // Alamat lama menu tahun.
+      { path: 'tahun-ajaran', redirect: { name: 'tahun', query: { tab: 'akademik' } } },
+      { path: 'master/tahun', redirect: { name: 'tahun', query: { tab: 'akademik' } } },
+      { path: 'master/tahun-keuangan', redirect: { name: 'tahun', query: { tab: 'keuangan' } } },
+      { path: 'master/tahun-pmb', redirect: { name: 'tahun', query: { tab: 'pmb' } } },
+      { path: 'master/tahun-frs', redirect: { name: 'tahun', query: { tab: 'frs' } } },
+      { path: 'master/tahun-ta-skripsi', redirect: { name: 'tahun', query: { tab: 'ta-skripsi' } } },
+      { path: 'master/tahun-sp', redirect: { name: 'tahun', query: { tab: 'sp' } } },
       {
         path: 'master/ruangan',
         name: 'admin-master-ruangan',
@@ -1543,42 +1561,6 @@ const routes: RouteRecordRaw[] = [
         name: 'admin-master-agama',
         component: () => import('@/views/admin/master/AgamaView.vue'),
         meta: { menuCode: MENU.ADMIN_MASTER_AGAMA_MANAGEMENT, title: 'Agama' },
-      },
-      {
-        path: 'master/tahun',
-        name: 'admin-master-tahun',
-        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_AKADEMIK_MANAGEMENT, title: 'Tahun (Prodi, BAAK, MHS, Dosen, Pos & SDM)' },
-      },
-      {
-        path: 'master/tahun-keuangan',
-        name: 'admin-master-tahun-keuangan',
-        component: () => import('@/views/admin/master/TahunModulView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_KEUANGAN_MANAGEMENT, title: 'Tahun (Kasir & Keuangan)', modul: 'keuangan' },
-      },
-      {
-        path: 'master/tahun-pmb',
-        name: 'admin-master-tahun-pmb',
-        component: () => import('@/views/admin/master/TahunModulView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_PMB_MANAGEMENT, title: 'Tahun (PMB)', modul: 'pmb' },
-      },
-      {
-        path: 'master/tahun-frs',
-        name: 'admin-master-tahun-frs',
-        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_FRS_MANAGEMENT, title: 'Tahun (FRS)' },
-      },
-      {
-        path: 'master/tahun-ta-skripsi',
-        name: 'admin-master-tahun-ta-skripsi',
-        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_TA_SKRIPSI_MANAGEMENT, title: 'Tahun TA/Skripsi' },
-      },
-      {
-        path: 'master/tahun-sp',
-        name: 'admin-master-tahun-sp',
-        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
-        meta: { menuCode: MENU.ADMIN_MASTER_TAHUN_SP_MANAGEMENT, title: 'Tahun SP' },
       },
       {
         path: 'master/prodi',
@@ -1604,8 +1586,9 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'master/mahasiswa',
         name: 'admin-master-mahasiswa',
-        component: () => import('@/views/admin/master/MasterComingSoonView.vue'),
+        component: () => import('@/views/baak/MahasiswaView.vue'),
         meta: { menuCode: MENU.ADMIN_MASTER_MAHASISWA_MANAGEMENT, title: 'Mahasiswa' },
+        props: { menuCode: MENU.ADMIN_MASTER_MAHASISWA_MANAGEMENT },
       },
     ],
   },
@@ -1615,7 +1598,7 @@ const routes: RouteRecordRaw[] = [
   { path: '/admin/users', redirect: '/modul-admin/users' },
   { path: '/admin/roles', redirect: '/modul-admin/roles' },
   { path: '/admin/roles/:id/permissions', redirect: (to) => `/modul-admin/roles/${to.params.id}/permissions` },
-  { path: '/baak/tahun-ajaran', redirect: '/modul-admin/tahun-ajaran' },
+  { path: '/baak/tahun-ajaran', redirect: '/modul-admin/tahun?tab=akademik' },
   // ---- LMS console (Learning Management System) ----
   {
     // Halaman login LMS tersendiri (gaya portal e-learning): Siakad (dosen / mahasiswa), email, atau username staf.
@@ -1879,6 +1862,12 @@ router.beforeEach(async (to) => {
     if (to.path.startsWith('/lms')) return { name: 'lms-login' };
     return { name: 'login', query: { redirect: to.fullPath } };
   }
+
+  // Sesi terikat modul yang dipilih saat login: halaman modul lain (mis. tombol Back ke PMB setelah
+  // masuk Keuangan) diarahkan ke beranda modul sesi. Pindah modul lewat halaman login.
+  const modulSesi = STAFF_MODULES[staffModuleStorage.get() as StaffModuleKey];
+  const modulTujuan = Object.values(STAFF_MODULES).find((m) => to.path === m.prefix || to.path.startsWith(`${m.prefix}/`));
+  if (modulSesi && modulTujuan && modulTujuan !== modulSesi) return modulSesi.home;
 
   if (!menuStore.loaded) {
     await menuStore.load();

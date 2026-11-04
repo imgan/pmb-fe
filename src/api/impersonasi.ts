@@ -8,11 +8,11 @@ export interface ImpersonasiAkun {
   id: number;
   isActive: boolean;
   email?: string | null;
+  lastLoginAt?: string | null;
   // staff
   name?: string;
   username?: string;
   kodeProdi?: string | null;
-  lastLoginAt?: string | null;
   role?: { id: number; code: string; name: string } | null;
   // dosen
   nik?: string | null;

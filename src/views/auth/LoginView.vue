@@ -103,6 +103,10 @@ onMounted(async () => {
   } catch {
     // Form tetap bisa dipakai; backend menerima login tanpa konteks.
   }
+  // Datang dari sesi yang berakhir: langsung ke form login modul halaman terakhir.
+  const redirect = route.query.redirect;
+  const asal = typeof redirect === 'string' ? modules.find((m) => m.key in STAFF_MODULES && redirect.startsWith(`${STAFF_MODULES[m.key as ModuleKey].prefix}/`)) : null;
+  if (asal) selectModule(asal);
 });
 /**
  * Tahun bawaan form login: PMB & Keuangan memakai padanan Tahun Ajaran PMB / Keuangan aktif (Modul Admin), modul lain
@@ -162,7 +166,8 @@ const handleSubmit = async () => {
       error.value = `Akun ini tidak memiliki akses ke modul ${module.label}. Pilih modul yang sesuai dengan akun Anda.`;
       return;
     }
-    router.push(resolveRedirect(module) ?? module.home);
+    // replace: halaman login tidak tertinggal di riwayat, jadi tombol Back tidak kembali ke form login.
+    router.replace(resolveRedirect(module) ?? module.home);
   } catch (err) {
     error.value = extractErrorMessage(err, 'Username atau password salah');
   } finally {

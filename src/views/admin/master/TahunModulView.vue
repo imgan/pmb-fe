@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { reactive, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -22,13 +21,13 @@ import { confirmAction, toastError, toastSuccess } from '@/utils/swal';
 import type { SemesterGanjilGenap, TahunModul } from '@/types/entities';
 
 /**
- * Modul Admin › Master › Tahun (PMB) / Tahun (Kasir & Keuangan) — route meta.modul: CRUD Tahun Ajaran PMB / Keuangan,
+ * Tab PMB / Keuangan / FRS / TA-Skripsi / SP pada Modul Admin › Tahun: CRUD tahun per modul,
  * data periode tersendiri yang terpisah dari tahun akademik (Tahun Ajaran), dengan satu tahun aktif per modul.
  */
-const route = useRoute();
-const modul = route.meta.modul as ModulTahun;
+const props = defineProps<{ modul: ModulTahun; menuCode: string }>();
+const modul = props.modul;
 const api = tahunModulApi(modul);
-const { canCreate, canUpdate, canDelete } = usePermission(route.meta.menuCode as string);
+const { canCreate, canUpdate, canDelete } = usePermission(props.menuCode);
 const INFO = {
   pmb: {
     judul: 'Tahun Ajaran PMB',
@@ -39,6 +38,23 @@ const INFO = {
     judul: 'Tahun Ajaran Keuangan',
     sub: 'Periode tagihan kasir & keuangan — terpisah dari tahun akademik.',
     dampak: ['Semester tagihan berjalan untuk Batas Tagihan Akademik (cekal KRS / UTS / nilai).', 'Pilihan tahun bawaan saat login modul Keuangan.', 'Tahun dicocokkan dengan tahun akademik bernama & semester sama untuk data tagihan.'],
+  },
+  frs: {
+    judul: 'Tahun FRS',
+    sub: 'Periode pengisian Formulir Rencana Studi — terpisah dari tahun akademik.',
+    keterangan: true,
+    dampak: ['Periode pengisian KRS di portal mahasiswa: mata kuliah, semester, dan pengajuan mengikuti tahun aktif di sini.', 'Bawaan daftar mahasiswa belum mengisi KRS (BAAK & Prodi) dan laporan FRS di modul SIM.', 'Perlu Tahun Akademik dengan nama & semester yang sama; bila belum ada, sistem memakai tahun akademik aktif.', 'Kehadiran, nilai, dan jadwal tetap mengikuti tahun akademik aktif.'],
+  },
+  'ta-skripsi': {
+    judul: 'Tahun TA/Skripsi',
+    sub: 'Periode proses Tugas Akhir/Skripsi — terpisah dari tahun akademik.',
+    dampak: ['Pilihan tahun pada Keuangan › Master › Tarif TA/Skripsi; tarif baru otomatis memakai tahun aktif.'],
+  },
+  sp: {
+    judul: 'Tahun SP',
+    sub: 'Periode Semester Pendek — terpisah dari tahun akademik.',
+    keterangan: true,
+    dampak: ['Disiapkan untuk periode Semester Pendek.', 'Belum terhubung ke menu lain: tahun aktif di sini belum memengaruhi KRS, pembayaran, maupun laporan Semester Pendek.'],
   },
 }[modul];
 
@@ -156,7 +172,7 @@ const aktifkan = async (t: TahunModul) => {
     </PageHeader>
 
     <section class="mb-6 rounded-lg border border-outline-variant bg-primary-container/30 p-4 text-body-sm">
-      <p class="font-semibold text-on-surface mb-1">{{ INFO.judul }} aktif dipakai untuk:</p>
+      <p class="font-semibold text-on-surface mb-1">{{ 'keterangan' in INFO ? `Keterangan ${INFO.judul}:` : `${INFO.judul} aktif dipakai untuk:` }}</p>
       <ul class="list-disc pl-5 text-on-surface-variant space-y-0.5">
         <li v-for="d in INFO.dampak" :key="d">{{ d }}</li>
       </ul>

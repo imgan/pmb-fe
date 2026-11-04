@@ -4,6 +4,7 @@ import PublicHeader from '@/components/public/PublicHeader.vue';
 import PublicFooter from '@/components/public/PublicFooter.vue';
 import PesertaSidebar from '@/components/public/PesertaSidebar.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
+import TextInput from '@/components/ui/TextInput.vue';
 import { usePesertaAuthStore } from '@/stores/pesertaAuth';
 import { pesertaAuthApi, type PesertaDataPmb } from '@/api/pesertaAuth';
 import { extractErrorMessage } from '@/api/http';
@@ -11,7 +12,8 @@ import { toastError, toastSuccess } from '@/utils/swal';
 
 /**
  * Data Pendaftaran di portal peserta: isian yang sama dengan popup Sumber Informasi 2 di menu Peserta (admin).
- * Setelah admin mengunci data, isian hanya bisa dibaca.
+ * Setelah admin mengunci data, isian hanya bisa dibaca. Kartu Sumber Informasi = popup Sumber Informasi admin, dengan
+ * kuncinya sendiri.
  */
 const pesertaAuthStore = usePesertaAuthStore();
 const loading = ref(true);
@@ -29,8 +31,14 @@ const form = reactive({
   jurusan3Id: '' as number | string | null,
 });
 
+const sumber = reactive({ sumberInformasiId: '' as number | string | null, keteranganSumber: '', kodeUnik: '' });
+const savingSumber = ref(false);
+
 const isiForm = (d: PesertaDataPmb) => {
   data.value = d;
+  sumber.sumberInformasiId = d.sumber.sumberInformasiId ?? '';
+  sumber.keteranganSumber = d.sumber.keteranganSumber ?? '';
+  sumber.kodeUnik = d.sumber.kodeUnik ?? '';
   pesertaAuthStore.dataPmbTersimpan = d.tersimpan;
   form.golonganKelasId = d.golonganKelasId ?? '';
   form.beasiswaId = d.beasiswaId ?? '';
@@ -52,6 +60,8 @@ onMounted(async () => {
 });
 
 const terkunci = computed(() => !!data.value?.terkunci);
+const sumberTerkunci = computed(() => !!data.value?.sumber.terkunci);
+const opsiSumber = computed(() => data.value?.opsi.sumber.map((s) => ({ value: s.id, label: s.namaInformasi })) ?? []);
 const opsiKelas = computed(() => data.value?.opsi.kelas.map((k) => ({ value: k.id, label: k.namaKelas })) ?? []);
 const opsiBeasiswa = computed(() => data.value?.opsi.beasiswa.map((b) => ({ value: b.id, label: b.namaBeasiswa })) ?? []);
 const opsiGelombang = computed(() => data.value?.opsi.gelombang.map((g) => ({ value: g.id, label: g.namaGelombang })) ?? []);
@@ -107,6 +117,28 @@ const simpan = async () => {
     saving.value = false;
   }
 };
+
+const simpanSumber = async () => {
+  if (!sumber.sumberInformasiId) {
+    toastError('Pilih dari mana Anda mendapat informasi kampus.');
+    return;
+  }
+  savingSumber.value = true;
+  try {
+    isiForm(
+      await pesertaAuthApi.saveMySumberInformasi({
+        sumberInformasiId: Number(sumber.sumberInformasiId),
+        keteranganSumber: sumber.keteranganSumber.trim() || null,
+        kodeUnik: sumber.kodeUnik.trim() || null,
+      })
+    );
+    toastSuccess('Sumber informasi disimpan');
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal menyimpan sumber informasi'));
+  } finally {
+    savingSumber.value = false;
+  }
+};
 </script>
 
 <template>
@@ -118,7 +150,8 @@ const simpan = async () => {
       <div class="md:col-start-2 w-full max-w-3xl text-center md:mb-10">
         <h1 class="text-headline-lg-mobile md:text-headline-lg font-semibold text-primary mb-3">Data Pendaftaran</h1>
         <p class="text-body-md text-on-surface-variant max-w-xl mx-auto">
-          Pilih kelas perkuliahan, skema pembayaran, ukuran almamater, gelombang, dan jurusan pilihan Anda.
+          Pilih kelas perkuliahan, skema pembayaran, ukuran almamater, gelombang, jurusan pilihan, dan dari mana Anda mendapat
+          informasi kampus.
         </p>
       </div>
       <PesertaSidebar class="md:row-start-2 self-start" />
@@ -155,6 +188,38 @@ const simpan = async () => {
             class="w-full bg-primary text-on-primary font-semibold text-label-md py-3.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-60"
           >
             {{ saving ? 'Menyimpan...' : 'Simpan' }}
+          </button>
+        </form>
+
+        <form
+          v-if="data"
+          class="mt-6 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-sm p-5 md:p-8 space-y-5"
+          @submit.prevent="simpanSumber"
+        >
+          <h2 class="text-title-md font-semibold text-on-surface">Sumber Informasi</h2>
+          <p v-if="sumberTerkunci" class="flex items-start gap-2 px-3 py-2 rounded-md bg-surface-container text-body-sm text-on-surface-variant">
+            <span class="material-symbols-outlined" style="font-size: 18px">lock</span>
+            Sumber informasi sudah dikunci oleh panitia PMB dan hanya bisa dilihat. Hubungi panitia bila ada perubahan.
+          </p>
+          <SelectInput
+            v-model="sumber.sumberInformasiId"
+            label="Mendapat Informasi Kampus Dari"
+            required
+            :options="opsiSumber"
+            placeholder="Pilih sumber informasi"
+            :disabled="sumberTerkunci"
+          />
+          <div class="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-4">
+            <TextInput v-model="sumber.keteranganSumber" label="Keterangan" placeholder="mis. nama teman / event / akun media sosial" :disabled="sumberTerkunci" />
+            <TextInput v-model="sumber.kodeUnik" label="Kode Unik" placeholder="mis. 001" :disabled="sumberTerkunci" />
+          </div>
+          <button
+            v-if="!sumberTerkunci"
+            type="submit"
+            :disabled="savingSumber"
+            class="w-full bg-primary text-on-primary font-semibold text-label-md py-3.5 rounded-lg shadow-sm hover:opacity-90 transition-opacity disabled:opacity-60"
+          >
+            {{ savingSumber ? 'Menyimpan...' : 'Simpan Sumber Informasi' }}
           </button>
         </form>
       </main>

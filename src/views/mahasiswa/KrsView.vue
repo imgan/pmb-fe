@@ -9,7 +9,6 @@ import {
   mahasiswaJadwalApi,
   mahasiswaKrsApi,
   mahasiswaSemesterApi,
-  mahasiswaTahunAjaranApi,
   type KuotaSks,
 } from '@/api/mahasiswaPortal';
 import { extractErrorMessage } from '@/api/http';
@@ -96,13 +95,11 @@ mahasiswaAksesAkademikApi
 
 onMounted(async () => {
   try {
-    const [tahunAjaran, semesterBerjalan] = await Promise.all([
-      mahasiswaTahunAjaranApi.aktif(),
-      mahasiswaSemesterApi.berjalan(),
-    ]);
-    tahunAjaranAktif.value = tahunAjaran;
-    semester.value = semesterBerjalan.semester;
-    statusMasuk.value = semesterBerjalan.statusMasuk;
+    // Periode KRS mengikuti Tahun FRS aktif, bisa berbeda dari tahun akademik berjalan.
+    const periode = await mahasiswaSemesterApi.periodeKrs();
+    tahunAjaranAktif.value = periode.tahunAjaran;
+    semester.value = periode.semester;
+    statusMasuk.value = periode.statusMasuk;
   } catch (err) {
     error.value = extractErrorMessage(err, 'Gagal memuat semester berjalan');
     return;

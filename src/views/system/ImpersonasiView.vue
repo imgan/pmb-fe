@@ -38,6 +38,7 @@ const COLUMNS: Record<ImpersonasiTipe, DataTableColumn[]> = {
     { key: 'nik', label: 'NIP' },
     { key: 'nidn', label: 'NIDN' },
     { key: 'email', label: 'Email' },
+    { key: 'lastLoginAt', label: 'Login Terakhir' },
     { key: 'isActive', label: 'Status', align: 'center' },
   ],
   mahasiswa: [
@@ -46,6 +47,7 @@ const COLUMNS: Record<ImpersonasiTipe, DataTableColumn[]> = {
     { key: 'jurusan', label: 'Program Studi' },
     { key: 'tahunMasuk', label: 'Angkatan', align: 'center' },
     { key: 'email', label: 'Email' },
+    { key: 'lastLoginAt', label: 'Login Terakhir' },
     { key: 'isActive', label: 'Status', align: 'center' },
   ],
 };

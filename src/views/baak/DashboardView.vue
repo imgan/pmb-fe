@@ -8,6 +8,7 @@ import LineChart from '@/components/charts/LineChart.vue';
 import VerticalBarChart from '@/components/charts/VerticalBarChart.vue';
 import StatistikAkmPanel from '@/components/baak/StatistikAkmPanel.vue';
 import { mahasiswaApi } from '@/api/mahasiswa';
+import { statistikAkmApi } from '@/api/statistikAkm';
 import { dosenApi } from '@/api/dosen';
 import { nilaiMahasiswaApi } from '@/api/nilaiMahasiswa';
 import { kehadiranDosenApi } from '@/api/kehadiranDosen';
@@ -59,8 +60,9 @@ const loadDashboard = async () => {
     semesterSummary.value = semesterResult;
     kehadiranSummary.value = kehadiranResult;
 
-    const activeResult = await mahasiswaApi.list({ limit: 1, isActive: true });
-    totalAktif.value = activeResult.meta.total;
+    // Sama dengan Statistik Mahasiswa di bawahnya: yang belum isi KRS tidak dihitung aktif.
+    const { total } = await statistikAkmApi.get();
+    totalAktif.value = total.aktif + total.doubleDegree + total.kampusMerdeka;
   } finally {
     loading.value = false;
   }

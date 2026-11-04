@@ -14,7 +14,8 @@ import type {
 export interface CicilanTagihanData {
   tagihan: {
     id: number;
-    semester: number;
+    /** null = bukan tagihan semester (mis. tagihan wisuda). */
+    semester: number | null;
     tahunAjaran: string | null;
     mahasiswa: { id: number; nim: string; namaLengkap: string };
     noVirtualAccount: string | null;

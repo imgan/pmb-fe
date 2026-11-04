@@ -204,8 +204,9 @@ const formatRupiah = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}
         <p class="text-body-sm text-on-surface-variant md:flex-1">
           Dihitung dari <strong>tagihan semester berjalan</strong> (tahun ajaran aktif) yang dicicil 6x per bulan
           (Ganjil September–Februari, Genap Maret–Agustus). KRS: minimal 15% (1 bulan), UTS: 50% (3 bulan),
-          Nilai/KHS/Daftar Nilai Sementara: cicilan s/d bulan berjalan lunas. Tunggakan semester sebelumnya, TA/Skripsi,
-          biaya lain &amp; tunggakan manual harus lunas; keringanan yang disetujui mengurangi tunggakan tersebut.
+          Nilai/KHS/Daftar Nilai Sementara: cicilan s/d bulan berjalan lunas. Tunggakan semester sebelumnya,
+          biaya lain &amp; tunggakan manual harus lunas; keringanan yang disetujui mengurangi tunggakan tersebut. Tagihan
+          TA/Skripsi dan wisuda tidak ikut dihitung.
         </p>
         <div class="w-full md:w-64">
           <SearchInput v-model="search" placeholder="Cari prodi..." />

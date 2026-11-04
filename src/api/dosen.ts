@@ -46,6 +46,10 @@ export const dosenApi = {
     const { data } = await http.get<ApiResponse<DosenProdiStatItem[]>>('/dosen/stats', { params: { groupBy: 'prodi' } });
     return data.data;
   },
+  async resetPassword(id: number): Promise<{ nip: string; namaLengkap: string }> {
+    const { data } = await http.post<ApiResponse<{ nip: string; namaLengkap: string }>>(`/dosen/${id}/reset-password`);
+    return data.data;
+  },
   async exportExcel(): Promise<Blob> {
     const { data } = await http.get('/dosen/export', { responseType: 'blob' });
     return data;

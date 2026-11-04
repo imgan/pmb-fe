@@ -13,7 +13,8 @@ import type { StatusCicilan } from '@/types/entities';
  * Atur cicilan bulanan satu tagihan: bagi rata otomatis lalu bisa diubah per baris (bulan, nominal,
  * jatuh tempo, No VA). Status per cicilan dihitung server dari total dibayar (cicilan awal dulu).
  */
-const props = defineProps<{ tagihanId: number | null; canEdit: boolean }>();
+// api: sumber cicilan; bawaan tagihan kuliah, tagihan wisuda memakai endpoint-nya sendiri.
+const props = withDefaults(defineProps<{ tagihanId: number | null; canEdit: boolean; api?: Pick<typeof tagihanKuliahApi, 'getCicilan' | 'saveCicilan'> }>(), { api: () => tagihanKuliahApi });
 const open = defineModel<boolean>({ default: false });
 const emit = defineEmits<{ saved: [] }>();
 
@@ -66,7 +67,7 @@ const load = async () => {
   loading.value = true;
   error.value = null;
   try {
-    data.value = await tagihanKuliahApi.getCicilan(props.tagihanId);
+    data.value = await props.api.getCicilan(props.tagihanId);
     baris.value = data.value.cicilan.map((c) => ({
       bulan: c.periode.slice(0, 7),
       nominal: c.nominal,
@@ -142,7 +143,7 @@ const simpan = async (hapusSemua = false) => {
   }
   saving.value = true;
   try {
-    await tagihanKuliahApi.saveCicilan(
+    await props.api.saveCicilan(
       props.tagihanId,
       rows.map((b) => ({
         periode: b.bulan,
@@ -169,7 +170,7 @@ const inputClass =
   <Modal
     v-model="open"
     title="Cicilan Bulanan"
-    :subtitle="data ? `${data.tagihan.mahasiswa.nim} — ${data.tagihan.mahasiswa.namaLengkap} · Semester ${data.tagihan.semester} · ${data.tagihan.tahunAjaran ?? ''}` : ''"
+    :subtitle="data ? `${data.tagihan.mahasiswa.nim} — ${data.tagihan.mahasiswa.namaLengkap} ${data.tagihan.semester ? `· Semester ${data.tagihan.semester}` : ''} · ${data.tagihan.tahunAjaran ?? ''}` : ''"
     size="xl"
   >
     <div v-if="loading" class="py-8 text-center text-body-sm text-on-surface-variant">Memuat cicilan...</div>

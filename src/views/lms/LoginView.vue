@@ -41,7 +41,7 @@ const loginStaf = async (username: string) => {
     authStore.logout();
     throw new Error('Akun ini tidak memiliki akses ke modul LMS.');
   }
-  router.push(STAFF_MODULES.lms.home);
+  router.replace(STAFF_MODULES.lms.home);
 };
 
 const masuk = async () => {

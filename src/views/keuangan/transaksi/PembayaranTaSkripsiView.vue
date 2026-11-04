@@ -1,263 +1,275 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { RouterLink, useRouter } from 'vue-router';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
 import PageSizeSelect from '@/components/ui/PageSizeSelect.vue';
-import SearchInput from '@/components/ui/SearchInput.vue';
-import SearchableSelect from '@/components/ui/SearchableSelect.vue';
 import TextInput from '@/components/ui/TextInput.vue';
-import DateInput from '@/components/ui/DateInput.vue';
 import AppButton from '@/components/ui/AppButton.vue';
-import ConfirmDialog from '@/components/ui/ConfirmDialog.vue';
+import SelectInput from '@/components/ui/SelectInput.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import Modal from '@/components/ui/Modal.vue';
-import { pembayaranTaSkripsiApi, type PembayaranTaSkripsiPayload } from '@/api/pembayaranTaSkripsi';
-import { mahasiswaApi } from '@/api/mahasiswa';
-import { extractErrorMessage } from '@/api/http';
-import { formatCurrencyIdr, formatCurrencyInputIdr, formatDate, parseRupiahInput } from '@/utils/format';
-import { useCrudPage } from '@/composables/useCrudPage';
+import { pembayaranTaSkripsiApi, type HasilGenerateTa, type MahasiswaTa, type OpsiGenerateTa, type StatusTagihanTa } from '@/api/pembayaranTaSkripsi';
 import { usePermission } from '@/composables/usePermission';
-import { toastSuccess, toastError } from '@/utils/swal';
 import { MENU } from '@/constants/menuCodes';
-import type { PembayaranTaSkripsi } from '@/types/entities';
+import { toastSuccess } from '@/utils/swal';
+import { formatCurrencyIdr } from '@/utils/format';
+import { extractErrorMessage } from '@/api/http';
+import type { PagingMeta } from '@/types/common';
 
-const { canCreate, canDelete } = usePermission(MENU.KEUANGAN_PEMBAYARAN_TA_SKRIPSI_MANAGEMENT);
+const router = useRouter();
 
-const mahasiswaOptions = ref<{ value: string; label: string }[]>([]);
-const mahasiswaIdByNim = ref<Record<string, number>>({});
-onMounted(async () => {
-  const result = await mahasiswaApi.list({ limit: 1000 });
-  mahasiswaOptions.value = result.data.map((m) => ({ value: m.nim, label: `${m.nim} - ${m.namaLengkap}` }));
-  mahasiswaIdByNim.value = Object.fromEntries(result.data.map((m) => [m.nim, m.id]));
-});
+const nimInput = ref('');
+const namaInput = ref('');
+const appliedKeyword = ref('');
+const searched = ref(false);
 
-const {
-  items,
-  meta,
-  page,
-  limit,
-  search,
-  loading,
-  error,
-  isFormOpen,
-  fetchItems,
-  openCreate,
-  closeForm,
-  onSaved,
-  deleteTarget,
-  deleting,
-  requestDelete,
-  cancelDelete,
-  confirmDelete,
-} = useCrudPage<PembayaranTaSkripsi>({
-  fetchList: pembayaranTaSkripsiApi.list,
-  remove: pembayaranTaSkripsiApi.remove,
-});
-
-fetchItems();
-
-const columns: DataTableColumn[] = [
-  { key: 'no', label: 'No', align: 'center' },
-  { key: 'nim', label: 'NIM' },
-  { key: 'nama', label: 'Nama' },
-  { key: 'periode', label: 'Periode', align: 'center' },
-  { key: 'tanggalBayar', label: 'Tanggal Bayar' },
-  { key: 'noBukti', label: 'No Bukti' },
-  { key: 'nominal', label: 'Nominal', align: 'right' },
+const { canCreate } = usePermission(MENU.KEUANGAN_PEMBAYARAN_TA_SKRIPSI_MANAGEMENT);
+const { canRead: bisaLihatLaporan } = usePermission(MENU.KEUANGAN_LAPORAN_TUNGGAKAN_MAHASISWA_MANAGEMENT);
+const statusBayarFilter = ref<'' | StatusTagihanTa>('');
+const STATUS_BAYAR_OPTIONS = [
+  { value: 'LUNAS', label: 'Lunas' },
+  { value: 'LEBIH_BAYAR', label: 'Lebih Bayar' },
+  { value: 'SEBAGIAN', label: 'Dicicil' },
+  { value: 'BELUM', label: 'Belum Bayar' },
+  { value: 'BELUM_DITAGIH', label: 'Belum Ditagih' },
 ];
+const STATUS_TAMPIL: Record<StatusTagihanTa, { label: string; variant: 'success' | 'warning' | 'danger' | 'neutral' }> = {
+  LUNAS: { label: 'Lunas', variant: 'success' },
+  LEBIH_BAYAR: { label: 'Lebih Bayar', variant: 'success' },
+  SEBAGIAN: { label: 'Dicicil', variant: 'warning' },
+  BELUM: { label: 'Belum Bayar', variant: 'danger' },
+  BELUM_DITAGIH: { label: 'Belum Ditagih', variant: 'neutral' },
+};
+
+const items = ref<MahasiswaTa[]>([]);
+const meta = ref<PagingMeta>({ total: 0, page: 1, limit: 10, totalPages: 1 });
+const page = ref(1);
+const pageSize = ref(10);
+const loading = ref(false);
+const error = ref<string | null>(null);
 
 const rows = computed(() =>
   items.value.map((item, index) => ({ ...item, no: (page.value - 1) * meta.value.limit + index + 1 }))
 );
 
-interface FormState {
-  nim: string;
-  periode: number | '';
-  tanggalBayar: string;
-  noBukti: string;
-  nominal: number | null;
-  kodeBank: string;
-  keterangan: string;
-}
-const todayIso = () => new Date().toISOString().slice(0, 10);
-const currentYear = () => new Date().getFullYear();
-const emptyForm = (): FormState => ({
-  nim: '',
-  periode: currentYear(),
-  tanggalBayar: todayIso(),
-  noBukti: '',
-  nominal: null,
-  kodeBank: '',
-  keterangan: '',
-});
-const form = reactive(emptyForm());
-const formError = ref<string | null>(null);
-const errors = reactive<Record<string, string>>({});
-const submitting = ref(false);
+const columns: DataTableColumn[] = [
+  { key: 'no', label: 'No', align: 'center' },
+  { key: 'nim', label: 'NIM' },
+  { key: 'namaLengkap', label: 'Nama' },
+  { key: 'jurusan', label: 'Kelas' },
+  { key: 'tahunMasuk', label: 'Tahun Masuk', align: 'center' },
+  { key: 'periode', label: 'Tagihan TA/Skripsi' },
+  { key: 'tagihan', label: 'Tagihan', align: 'right' },
+  { key: 'dibayar', label: 'Dibayar', align: 'right' },
+  { key: 'sisa', label: 'Sisa', align: 'right' },
+  { key: 'status', label: 'Status', align: 'center' },
+];
 
-watch(isFormOpen, (open) => {
-  if (!open) return;
-  Object.assign(form, emptyForm());
-  Object.keys(errors).forEach((k) => delete errors[k]);
-  formError.value = null;
-});
-
-// Auto-isi nominal dari Master Tarif TA/Skripsi (biaya pendaftaran per prodi) begitu NIM & periode terisi.
-watch([() => form.nim, () => form.periode], async ([nim, periode]) => {
-  if (!nim || !periode) return;
+const fetchItems = async () => {
+  loading.value = true;
+  error.value = null;
   try {
-    const tarif = await pembayaranTaSkripsiApi.tarif(nim, Number(periode));
-    if (tarif.biayaPendaftaran != null) form.nominal = tarif.biayaPendaftaran;
-  } catch {
-    // Diam saja — mahasiswa/tarif belum lengkap, admin isi nominal manual.
-  }
-});
-
-const onNominalInput = (event: Event) => {
-  form.nominal = parseRupiahInput((event.target as HTMLInputElement).value);
-};
-
-const handleSubmit = async () => {
-  Object.keys(errors).forEach((k) => delete errors[k]);
-  if (!form.nim.trim()) errors.nim = 'Mahasiswa wajib dipilih';
-  if (!form.periode) errors.periode = 'Periode wajib diisi';
-  if (!form.tanggalBayar) errors.tanggalBayar = 'Tanggal bayar wajib diisi';
-  if (!form.noBukti.trim()) errors.noBukti = 'No bukti wajib diisi';
-  if (!form.nominal || form.nominal <= 0) errors.nominal = 'Nominal wajib diisi';
-  if (Object.keys(errors).length > 0) return;
-
-  submitting.value = true;
-  formError.value = null;
-  try {
-    const mahasiswaId = mahasiswaIdByNim.value[form.nim];
-    if (!mahasiswaId) throw new Error(`Mahasiswa dengan NIM ${form.nim} tidak ditemukan`);
-
-    const payload: PembayaranTaSkripsiPayload = {
-      mahasiswaId,
-      periode: Number(form.periode),
-      tanggalBayar: form.tanggalBayar,
-      noBukti: form.noBukti.trim(),
-      nominal: Number(form.nominal),
-      kodeBank: form.kodeBank.trim() || null,
-      keterangan: form.keterangan.trim() || null,
-    };
-    await pembayaranTaSkripsiApi.create(payload);
-    onSaved();
-    toastSuccess('Pembayaran TA/Skripsi berhasil disimpan');
+    const result = await pembayaranTaSkripsiApi.listMahasiswa({
+      page: page.value,
+      limit: pageSize.value,
+      search: appliedKeyword.value || undefined,
+      statusBayar: statusBayarFilter.value || undefined,
+    });
+    items.value = result.data;
+    meta.value = result.meta;
   } catch (err) {
-    formError.value = extractErrorMessage(err, 'Gagal menyimpan pembayaran TA/Skripsi');
+    error.value = extractErrorMessage(err, 'Gagal memuat data mahasiswa');
   } finally {
-    submitting.value = false;
+    loading.value = false;
   }
 };
 
-const handleDelete = async () => {
+const handlePeriksa = () => {
+  appliedKeyword.value = nimInput.value.trim() || namaInput.value.trim();
+  page.value = 1;
+  searched.value = true;
+  fetchItems();
+};
+
+const onFilterChange = () => {
+  searched.value = true;
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+};
+
+// ---- Generate tagihan ----
+const generateOpen = ref(false);
+const pratinjau = ref<HasilGenerateTa | null>(null);
+const generateError = ref<string | null>(null);
+// Opsional: jadwal cicilan bulanan untuk tagihan yang belum punya jadwal & belum dibayar.
+const pakaiCicilan = ref(false);
+const jumlahBulan = ref(6);
+const bulanMulai = ref(new Date().toISOString().slice(0, 7));
+const hariJatuhTempo = ref<number | null>(10);
+const generating = ref(false);
+const opsiGenerate = ref<OpsiGenerateTa | null>(null);
+const tahunDipilih = ref<number | string | null>('');
+const tahunOptions = computed(() => (opsiGenerate.value?.tahun ?? []).map((t) => ({ value: t.id, label: `${t.nama}${t.isActive ? ' (aktif)' : ''}` })));
+const tarifTahun = computed(() => opsiGenerate.value?.tahun.find((t) => t.id === Number(tahunDipilih.value))?.tarif ?? []);
+const muatPratinjau = async () => {
+  pratinjau.value = null;
+  generateError.value = null;
+  if (!tahunDipilih.value) return;
   try {
-    await confirmDelete();
+    pratinjau.value = await pembayaranTaSkripsiApi.generate({ tahunTaSkripsiId: Number(tahunDipilih.value), pratinjau: true });
   } catch (err) {
-    toastError(extractErrorMessage(err, 'Gagal menghapus data'));
+    generateError.value = extractErrorMessage(err, 'Gagal menghitung tagihan');
   }
 };
+watch(tahunDipilih, muatPratinjau);
+const openGenerate = async () => {
+  generateOpen.value = true;
+  opsiGenerate.value = null;
+  tahunDipilih.value = '';
+  pratinjau.value = null;
+  generateError.value = null;
+  try {
+    opsiGenerate.value = await pembayaranTaSkripsiApi.opsiGenerate();
+    const bawaan = opsiGenerate.value.tahun.find((t) => t.isActive) ?? (opsiGenerate.value.tahun.length === 1 ? opsiGenerate.value.tahun[0] : null);
+    if (bawaan) tahunDipilih.value = bawaan.id;
+  } catch (err) {
+    generateError.value = extractErrorMessage(err, 'Gagal memuat pilihan tagihan');
+  }
+};
+const jalankanGenerate = async () => {
+  generating.value = true;
+  generateError.value = null;
+  try {
+    const hasil = await pembayaranTaSkripsiApi.generate({
+      tahunTaSkripsiId: Number(tahunDipilih.value),
+      cicilan: pakaiCicilan.value ? { jumlahBulan: jumlahBulan.value, bulanMulai: bulanMulai.value, hariJatuhTempo: hariJatuhTempo.value } : null,
+    });
+    toastSuccess(`${hasil.baru} tagihan dibuat, ${hasil.diubah} disesuaikan, ${hasil.sudahAda} sudah ada, ${hasil.cicilanDibuat} jadwal cicilan dibuat`);
+    generateOpen.value = false;
+    fetchItems();
+  } catch (err) {
+    generateError.value = extractErrorMessage(err, 'Gagal generate tagihan');
+  } finally {
+    generating.value = false;
+  }
+};
+
+const openDetail = (id: number) => {
+  router.push({ name: 'keuangan-pembayaran-ta-skripsi-detail', params: { mahasiswaId: id } });
+};
+
+watch(page, fetchItems);
+watch(pageSize, () => {
+  if (page.value !== 1) page.value = 1;
+  else fetchItems();
+});
+
+fetchItems();
 </script>
 
 <template>
   <div>
-    <PageHeader title="Pembayaran TA/Skripsi" subtitle="Transaksi pembayaran biaya tugas akhir/skripsi.">
-      <template v-if="canCreate" #actions>
-        <AppButton icon="add" @click="openCreate">Tambah Data</AppButton>
+    <PageHeader title="Pembayaran TA/Skripsi" subtitle="Tagihan, cicilan, dan tunggakan biaya tugas akhir/skripsi mahasiswa.">
+      <template #actions>
+        <RouterLink v-if="bisaLihatLaporan" :to="{ name: 'keuangan-laporan-tunggakan-mahasiswa' }">
+          <AppButton variant="secondary" icon="pending_actions">Lihat Tunggakan</AppButton>
+        </RouterLink>
+        <AppButton v-if="canCreate" icon="auto_awesome" @click="openGenerate">Generate Tagihan</AppButton>
       </template>
     </PageHeader>
 
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
-      <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">Semua Data Pembayaran TA/Skripsi</div>
-
-      <div class="p-4 border-b border-outline-variant flex justify-end">
-        <div class="w-full md:w-64">
-          <SearchInput v-model="search" placeholder="Cari NIM atau nama mahasiswa..." />
+      <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row gap-3 bg-surface-bright">
+        <div class="w-full md:w-72">
+          <TextInput v-model="nimInput" placeholder="Nomor Induk Mahasiswa" @keyup.enter="handlePeriksa" />
         </div>
+        <div class="w-full md:w-72">
+          <TextInput v-model="namaInput" placeholder="Nama Mahasiswa" @keyup.enter="handlePeriksa" />
+        </div>
+        <AppButton icon="search" @click="handlePeriksa">Periksa</AppButton>
+        <div class="w-full md:w-48">
+          <SelectInput v-model="statusBayarFilter" placeholder="Semua Status Bayar" :options="STATUS_BAYAR_OPTIONS" @change="onFilterChange" />
+        </div>
+      </div>
+
+      <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">
+        {{ appliedKeyword ? `Hasil Pencarian "${appliedKeyword}"` : 'Semua Data Master Pembayaran TA/Skripsi' }}
       </div>
 
       <div v-if="error" class="p-4 text-body-sm text-error bg-error-container">{{ error }}</div>
 
       <div class="px-4 py-3 border-b border-outline-variant">
-        <PageSizeSelect v-model="limit" />
+        <PageSizeSelect v-model="pageSize" />
       </div>
 
-      <DataTable :columns="columns" :items="rows" :loading="loading" empty-message="Belum ada data pembayaran TA/Skripsi">
-        <template #cell-nim="{ item }">{{ item.mahasiswa?.nim ?? '-' }}</template>
-        <template #cell-nama="{ item }">{{ item.mahasiswa?.namaLengkap ?? '-' }}</template>
-        <template #cell-tanggalBayar="{ item }">{{ formatDate(item.tanggalBayar) }}</template>
-        <template #cell-nominal="{ item }">{{ formatCurrencyIdr(item.nominal) }}</template>
+      <DataTable
+        :columns="columns"
+        :items="rows"
+        :loading="loading"
+        :empty-message="searched ? 'Mahasiswa tidak ditemukan' : 'Belum ada data mahasiswa'"
+      >
+        <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
+        <template #cell-periode="{ item }">{{ item.periode ?? '-' }}</template>
+        <template #cell-tagihan="{ item }">{{ item.tagihan ? formatCurrencyIdr(item.tagihan) : '-' }}</template>
+        <template #cell-dibayar="{ item }">{{ item.dibayar ? formatCurrencyIdr(item.dibayar) : '-' }}</template>
+        <template #cell-sisa="{ item }">
+          <span v-if="item.lebihBayar" class="font-semibold text-success whitespace-nowrap">Lebih bayar {{ formatCurrencyIdr(item.lebihBayar) }}</span>
+          <span v-else :class="item.sisa ? 'font-semibold text-error' : ''">{{ item.sisa ? formatCurrencyIdr(item.sisa) : '-' }}</span>
+        </template>
+        <template #cell-status="{ item }">
+          <StatusBadge :variant="STATUS_TAMPIL[item.status as StatusTagihanTa].variant" :label="STATUS_TAMPIL[item.status as StatusTagihanTa].label" />
+        </template>
         <template #actions="{ item }">
-          <button
-            v-if="canDelete"
-            type="button"
-            class="text-on-surface-variant hover:text-error transition-colors"
-            title="Hapus"
-            @click="requestDelete(item)"
-          >
-            <span class="material-symbols-outlined" style="font-size: 18px">delete</span>
-          </button>
+          <AppButton icon="payments" @click="openDetail(item.id)">Pembayaran</AppButton>
         </template>
       </DataTable>
 
       <Pagination v-model="page" :meta="meta" />
     </section>
 
-    <Modal :model-value="isFormOpen" title="Form Pembayaran TA/Skripsi" size="md" @update:model-value="closeForm">
-      <form class="space-y-4" @submit.prevent="handleSubmit">
-        <div v-if="formError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
-          {{ formError }}
+    <Modal v-model="generateOpen" title="Generate Tagihan TA/Skripsi" subtitle="Dari biaya pendaftaran di Master → Tarif TA/Skripsi, sesuai prodi mahasiswa." size="md">
+      <div v-if="generateError" class="mb-3 px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">{{ generateError }}</div>
+      <p v-if="!opsiGenerate && !generateError" class="p-4 text-center text-body-sm text-on-surface-variant">Memuat...</p>
+      <div v-if="opsiGenerate" class="space-y-3 mb-3">
+        <SelectInput v-model="tahunDipilih" label="Tahun TA/Skripsi" required :options="tahunOptions" placeholder="Pilih tahun" :clearable="false" />
+        <p v-if="!opsiGenerate.tahun.length" class="text-body-sm text-error">Belum ada tarif TA/Skripsi aktif. Isi di Master → Tarif TA/Skripsi.</p>
+        <ul v-if="tarifTahun.length" class="text-body-sm border border-outline-variant rounded-lg divide-y divide-outline-variant">
+          <li v-for="t in tarifTahun" :key="t.prodi" class="px-3 py-1.5 flex justify-between gap-3">
+            <span>{{ t.prodi }}</span><span class="font-medium tabular-nums">{{ formatCurrencyIdr(t.biaya) }}</span>
+          </li>
+        </ul>
+      </div>
+      <div v-if="pratinjau" class="space-y-3 text-body-sm">
+        <p>Tagihan dibuat untuk mahasiswa aktif semester 5 ke atas, sebesar biaya pendaftaran prodinya. Generate ulang menimpa tagihan lama yang belum lunas.</p>
+        <div class="border border-outline-variant rounded-lg p-3">
+          <p class="font-semibold">{{ pratinjau.jumlahTarget }} mahasiswa</p>
+          <p class="text-on-surface-variant">{{ pratinjau.baru }} tagihan baru · {{ pratinjau.diubah }} ditimpa · {{ pratinjau.sudahAda }} tidak berubah ({{ pratinjau.lunas }} lunas)</p>
         </div>
-        <SearchableSelect
-          v-model="form.nim"
-          label="Mahasiswa"
-          required
-          placeholder="Pilih mahasiswa..."
-          search-placeholder="Cari NIM atau nama..."
-          :options="mahasiswaOptions"
-          :error="errors.nim"
-        />
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TextInput v-model.number="form.periode" label="Periode" type="number" required :error="errors.periode" />
-          <DateInput v-model="form.tanggalBayar" label="Tanggal Bayar" required :error="errors.tanggalBayar" />
-        </div>
-        <TextInput v-model="form.noBukti" label="No Bukti" required :error="errors.noBukti" />
-        <label class="block">
-          <span class="block font-medium text-label-md text-on-surface mb-2">
-            Nominal<span class="text-error"> *</span>
-          </span>
-          <input
-            :value="formatCurrencyInputIdr(form.nominal)"
-            inputmode="numeric"
-            placeholder="0"
-            class="w-full px-3 py-2 border rounded-md bg-surface-container-lowest text-body-md text-on-surface outline-none transition-colors"
-            :class="
-              errors.nominal
-                ? 'border-error focus:border-error focus:ring-1 focus:ring-error'
-                : 'border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary'
-            "
-            @input="onNominalInput"
-          />
-          <p v-if="errors.nominal" class="mt-1 text-label-sm text-error">{{ errors.nominal }}</p>
-          <p v-else class="mt-1 text-label-sm text-on-surface-variant">Terisi otomatis dari Master Tarif TA/Skripsi (biaya pendaftaran sesuai prodi) jika tersedia.</p>
+        <p v-if="pratinjau.tanpaTarif" class="text-error">
+          {{ pratinjau.tanpaTarif }} mahasiswa semester 5 ke atas dilewati karena prodinya belum punya tarif di tahun ini.
+        </p>
+        <p v-if="pratinjau.diubahSudahBayar" class="text-error">
+          {{ pratinjau.diubahSudahBayar }} tagihan yang ditimpa sudah ada pembayarannya. Pembayaran tetap tercatat, sisa dihitung ulang, dan jadwal cicilannya dihapus.
+        </p>
+        <label class="inline-flex items-center gap-2 cursor-pointer">
+          <input v-model="pakaiCicilan" type="checkbox" class="accent-primary" />
+          Buat jadwal cicilan bulanan
         </label>
-        <TextInput v-model="form.kodeBank" label="Kode Bank" placeholder="mis. BCA, BRI" />
-        <TextInput v-model="form.keterangan" label="Keterangan" />
-      </form>
+        <div v-if="pakaiCicilan" class="grid grid-cols-3 gap-3">
+          <label class="block"><span class="block text-on-surface-variant mb-1">Jumlah bulan</span><input v-model.number="jumlahBulan" type="number" min="1" max="24" class="w-full px-2 py-1.5 border border-outline-variant rounded-md bg-surface-container-lowest" /></label>
+          <label class="block"><span class="block text-on-surface-variant mb-1">Mulai bulan</span><input v-model="bulanMulai" type="month" class="w-full px-2 py-1.5 border border-outline-variant rounded-md bg-surface-container-lowest" /></label>
+          <label class="block"><span class="block text-on-surface-variant mb-1">Jatuh tempo tiap tgl</span><input v-model.number="hariJatuhTempo" type="number" min="1" max="31" class="w-full px-2 py-1.5 border border-outline-variant rounded-md bg-surface-container-lowest" /></label>
+          <p class="col-span-3 text-label-sm text-on-surface-variant">Hanya untuk tagihan yang belum punya jadwal dan belum dibayar. Jadwal per mahasiswa bisa diubah di halaman Pembayaran.</p>
+        </div>
+      </div>
       <template #footer>
-        <AppButton variant="secondary" @click="closeForm">Batal</AppButton>
-        <AppButton :disabled="submitting" @click="handleSubmit">{{ submitting ? 'Menyimpan...' : 'Simpan' }}</AppButton>
+        <AppButton variant="secondary" @click="generateOpen = false">Batal</AppButton>
+        <AppButton icon="auto_awesome" :disabled="!pratinjau || generating || !(pratinjau.baru + pratinjau.diubah + (pakaiCicilan ? pratinjau.sudahAda : 0))" @click="jalankanGenerate">
+          {{ generating ? 'Memproses...' : 'Generate' }}
+        </AppButton>
       </template>
     </Modal>
-
-    <ConfirmDialog
-      :open="!!deleteTarget"
-      title="Hapus Pembayaran TA/Skripsi"
-      :message="`Yakin ingin menghapus data pembayaran ${deleteTarget?.mahasiswa?.namaLengkap ?? ''}?`"
-      :loading="deleting"
-      @confirm="handleDelete"
-      @cancel="cancelDelete"
-    />
   </div>
 </template>

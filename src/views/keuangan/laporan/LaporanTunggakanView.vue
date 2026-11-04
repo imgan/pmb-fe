@@ -25,6 +25,7 @@ const grandTotal = ref<Omit<LaporanTunggakanJurusanRow, 'prodi'>>({
   tagihanSisa: 0,
   tagihanTaSkripsisSisa: 0,
   tagihanBiayaLainSisa: 0,
+  tagihanWisudaSisa: 0,
   tunggakanManual: 0,
   totalTunggakan: 0,
 });
@@ -111,6 +112,7 @@ const handleExport = async () => {
               <th class="p-3 border border-outline-variant text-right">Sisa Tagihan Kuliah</th>
               <th class="p-3 border border-outline-variant text-right">Sisa TA/Skripsi</th>
               <th class="p-3 border border-outline-variant text-right">Sisa Biaya Lain</th>
+              <th class="p-3 border border-outline-variant text-right">Sisa Wisuda</th>
               <th class="p-3 border border-outline-variant text-right">Tunggakan Lain</th>
               <th class="p-3 border border-outline-variant text-right">Total Tunggakan</th>
             </tr>
@@ -122,6 +124,7 @@ const handleExport = async () => {
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(row.tagihanSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(row.tagihanTaSkripsisSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(row.tagihanBiayaLainSisa) }}</td>
+              <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(row.tagihanWisudaSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(row.tunggakanManual) }}</td>
               <td class="p-2 border border-outline-variant text-right font-medium text-error">{{ formatCurrencyIdr(row.totalTunggakan) }}</td>
             </tr>
@@ -131,6 +134,7 @@ const handleExport = async () => {
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.tagihanSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.tagihanTaSkripsisSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.tagihanBiayaLainSisa) }}</td>
+              <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.tagihanWisudaSisa) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.tunggakanManual) }}</td>
               <td class="p-2 border border-outline-variant text-right">{{ formatCurrencyIdr(grandTotal.totalTunggakan) }}</td>
             </tr>

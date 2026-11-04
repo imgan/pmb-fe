@@ -7,6 +7,7 @@ import { useMenuStore } from './stores/menu';
 import { usePesertaAuthStore } from './stores/pesertaAuth';
 import { useDosenAuthStore } from './stores/dosenAuth';
 import { useMahasiswaAuthStore } from './stores/mahasiswaAuth';
+import { toastInfo } from './utils/swal';
 import { registerUnauthorizedHandler, STAFF_TOKEN_KEY } from './api/http';
 import { registerPesertaUnauthorizedHandler } from './api/pesertaHttp';
 import { registerDosenUnauthorizedHandler } from './api/dosenHttp';
@@ -23,12 +24,21 @@ async function bootstrap() {
   const dosenAuthStore = useDosenAuthStore();
   const mahasiswaAuthStore = useMahasiswaAuthStore();
 
+  // Tombol Back bisa memulihkan halaman lama dari cache browser tanpa melewati router guard (mis. PMB setelah login
+  // Keuangan, atau halaman staf setelah logout): muat ulang supaya sesi & modul dicek lagi.
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) window.location.reload();
+  });
+
+  // Sesi habis (token tidak valid & refresh gagal): kembali ke login, lalu lanjut ke halaman terakhir setelah masuk.
   registerUnauthorizedHandler(() => {
     authStore.logout();
     menuStore.reset();
-    if (router.currentRoute.value.name !== 'login') {
-      router.push({ name: 'login' });
-    }
+    const sekarang = router.currentRoute.value;
+    if (sekarang.meta.public) return;
+    toastInfo('Sesi Anda sudah berakhir. Silakan login kembali.');
+    if (sekarang.path.startsWith('/lms')) router.replace({ name: 'lms-login' });
+    else router.replace({ name: 'login', query: { redirect: sekarang.fullPath } });
   });
 
   registerPesertaUnauthorizedHandler(() => {

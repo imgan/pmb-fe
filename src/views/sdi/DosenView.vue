@@ -20,10 +20,11 @@ import { dosenApi } from '@/api/dosen';
 import { jurusanApi } from '@/api/jurusan';
 import { extractErrorMessage } from '@/api/http';
 import { toDateInputValue } from '@/utils/format';
+import { toastError, toastSuccess } from '@/utils/swal';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
 import { MENU } from '@/constants/menuCodes';
-import type { DosenProdiStatItem } from '@/types/entities';
+import type { Dosen, DosenProdiStatItem } from '@/types/entities';
 
 // Halaman ini juga dipakai Modul Admin → Master, dengan kode menu Admin sebagai sumber hak akses.
 const props = withDefaults(defineProps<{ menuCode?: string }>(), { menuCode: MENU.DOSEN_MANAGEMENT });
@@ -236,6 +237,23 @@ const handleSubmit = async () => {
   }
 };
 
+// ---- Reset password portal dosen ke NIP ----
+const resetTarget = ref<Dosen | null>(null);
+const resetting = ref(false);
+const confirmResetPassword = async () => {
+  if (!resetTarget.value) return;
+  resetting.value = true;
+  try {
+    const result = await dosenApi.resetPassword(resetTarget.value.id);
+    toastSuccess(`Password ${result.namaLengkap} direset ke NIP (${result.nip})`);
+    resetTarget.value = null;
+  } catch (err) {
+    toastError(extractErrorMessage(err, 'Gagal reset password'));
+  } finally {
+    resetting.value = false;
+  }
+};
+
 const handleDeleted = async () => {
   await confirmDelete();
   loadStats();
@@ -308,6 +326,16 @@ const handleDeleted = async () => {
           <StatusBadge :variant="item.isActive ? 'success' : 'neutral'" :label="item.isActive ? 'Aktif' : 'Non-aktif'" />
         </template>
         <template #actions="{ item }">
+          <button
+            v-if="canUpdate"
+            type="button"
+            class="text-on-surface-variant hover:text-primary transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            :disabled="!item.nik"
+            :title="item.nik ? 'Reset Password (ke NIP)' : 'Isi NIP terlebih dahulu untuk reset password'"
+            @click="resetTarget = item"
+          >
+            <span class="material-symbols-outlined" style="font-size: 20px">lock_reset</span>
+          </button>
           <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
         </template>
       </DataTable>
@@ -374,6 +402,16 @@ const handleDeleted = async () => {
         <AppButton :disabled="submitting" @click="handleSubmit">{{ submitting ? 'Menyimpan...' : 'Simpan' }}</AppButton>
       </template>
     </Modal>
+
+    <ConfirmDialog
+      :open="!!resetTarget"
+      title="Reset Password Dosen"
+      :message="`Reset password portal ${resetTarget?.namaLengkap ?? ''} ke NIP (${resetTarget?.nik ?? ''})? Password lama tidak bisa dipakai lagi.`"
+      confirm-label="Reset Password"
+      :loading="resetting"
+      @confirm="confirmResetPassword"
+      @cancel="resetTarget = null"
+    />
 
     <ConfirmDialog
       :open="!!deleteTarget"

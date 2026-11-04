@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import StatusBadge from '@/components/ui/StatusBadge.vue';
 import {
   mahasiswaPembayaranApi,
@@ -35,6 +35,12 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+
+// Tagihan selain kuliah (TA/Skripsi & wisuda) bentuknya sama, ditampilkan dengan kartu yang sama.
+const tagihanLain = computed(() => [
+  ...(data.value?.taSkripsi ?? []).map((t) => ({ ...t, jenis: 'TA/Skripsi', kunci: `ta-${t.id}` })),
+  ...(data.value?.wisuda ?? []).map((w) => ({ ...w, jenis: 'Wisuda', kunci: `wisuda-${w.id}` })),
+]);
 
 const toggle = (id: number) => {
   const next = new Set(expanded.value);
@@ -299,6 +305,82 @@ const cetakKwitansi = async (pembayaranId: number) => {
               </table>
             </div>
             <p v-else class="text-body-sm text-on-surface-variant">Belum ada pembayaran untuk semester ini.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tagihan TA/Skripsi & wisuda -->
+      <section v-for="w in tagihanLain" :key="w.kunci" class="mb-4 bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
+        <div class="px-4 py-3 bg-primary text-on-primary flex items-center justify-between gap-3">
+          <span class="text-label-md font-medium">Tagihan {{ w.jenis }}<span v-if="w.keterangan"> &middot; {{ w.keterangan }}</span></span>
+          <StatusBadge :label="STATUS_LABEL[w.status]" :variant="STATUS_VARIANT[w.status]" />
+        </div>
+        <div class="px-4 py-3 grid grid-cols-3 gap-2 text-body-sm border-b border-outline-variant">
+          <div>
+            <p class="text-label-sm text-on-surface-variant">Tagihan</p>
+            <p class="font-medium text-on-surface">{{ formatCurrencyIdr(w.totalTagihan) }}</p>
+          </div>
+          <div>
+            <p class="text-label-sm text-on-surface-variant">Dibayar</p>
+            <p class="font-medium text-success">{{ formatCurrencyIdr(w.totalDibayar) }}</p>
+          </div>
+          <div>
+            <p class="text-label-sm text-on-surface-variant">Sisa</p>
+            <p class="font-medium" :class="w.sisaTagihan > 0 ? 'text-error' : 'text-success'">{{ formatCurrencyIdr(w.sisaTagihan) }}</p>
+            <p v-if="w.lebihBayar" class="text-label-sm text-success">Lebih bayar {{ formatCurrencyIdr(w.lebihBayar) }}</p>
+          </div>
+        </div>
+        <div class="px-4 py-3 space-y-4">
+          <div v-if="w.cicilan.length">
+            <p class="text-label-md font-medium text-on-surface mb-1">Cicilan Bulanan</p>
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-body-sm">
+                <thead class="text-label-sm text-on-surface-variant border-b border-outline-variant">
+                  <tr>
+                    <th class="py-2 pr-3 font-medium">Ke</th>
+                    <th class="py-2 pr-3 font-medium">Bulan</th>
+                    <th class="py-2 pr-3 font-medium text-right">Nominal</th>
+                    <th class="py-2 pr-3 font-medium">Jatuh Tempo</th>
+                    <th class="py-2 font-medium text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                  <tr v-for="c in w.cicilan" :key="c.cicilanKe">
+                    <td class="py-2 pr-3">{{ c.cicilanKe }}</td>
+                    <td class="py-2 pr-3 whitespace-nowrap">{{ namaBulan(c.periode) }}</td>
+                    <td class="py-2 pr-3 text-right whitespace-nowrap">
+                      {{ formatCurrencyIdr(c.nominal) }}
+                      <span v-if="c.status === 'BELUM_LUNAS'" class="block text-label-sm text-on-surface-variant">sisa {{ formatCurrencyIdr(c.sisa) }}</span>
+                    </td>
+                    <td class="py-2 pr-3 whitespace-nowrap" :class="c.terlambat ? 'text-error font-medium' : ''">{{ c.tanggalJatuhTempo ? formatDate(c.tanggalJatuhTempo) : '-' }}</td>
+                    <td class="py-2 text-center"><StatusBadge :label="STATUS_LABEL[c.status]" :variant="STATUS_VARIANT[c.status]" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="mt-1 text-label-sm text-on-surface-variant">Pembayaran otomatis melunasi cicilan paling awal lebih dulu.</p>
+          </div>
+          <div>
+            <p class="text-label-md font-medium text-on-surface mb-1">Riwayat Pembayaran</p>
+            <div v-if="w.pembayaran.length" class="overflow-x-auto">
+              <table class="w-full text-left text-body-sm">
+                <thead class="text-label-sm text-on-surface-variant border-b border-outline-variant">
+                  <tr>
+                    <th class="py-2 pr-3 font-medium">Tanggal</th>
+                    <th class="py-2 pr-3 font-medium">Bank / No. Bukti</th>
+                    <th class="py-2 font-medium text-right">Nominal</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-outline-variant">
+                  <tr v-for="p in w.pembayaran" :key="p.id">
+                    <td class="py-2 pr-3 whitespace-nowrap">{{ formatDate(p.tanggalBayar) }}</td>
+                    <td class="py-2 pr-3">{{ [p.kodeBank, p.noBukti].filter(Boolean).join(' / ') || '-' }}</td>
+                    <td class="py-2 text-right whitespace-nowrap font-medium">{{ formatCurrencyIdr(p.nominal) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p v-else class="text-body-sm text-on-surface-variant">Belum ada pembayaran {{ w.jenis }}.</p>
           </div>
         </div>
       </section>

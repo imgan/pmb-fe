@@ -54,8 +54,8 @@ const bagian: PanduanBagian[] = [
       {
         judul: 'Jurusan',
         to: 'jurusan',
-        ringkas: 'Master jurusan per golongan kelas.',
-        catatan: ['Nama prodi yang muncul lebih dari sekali adalah varian Reguler/Karyawan/Malam untuk PMB. Jangan dihapus sebagai data ganda.'],
+        ringkas: 'Satu prodi bisa dibuka untuk banyak golongan kelas: centang golongan kelasnya di form. Isian prodi berlaku untuk semua golongan kelas tersebut.',
+        catatan: ['Golongan kelas atau prodi yang masih dipakai data lain tidak bisa dilepas atau dihapus.'],
       },
       { judul: 'Sumber Informasi', to: 'sumber-informasi', ringkas: 'Pilihan dari mana calon mahasiswa mengetahui kampus.' },
       { judul: 'Ukuran Almamater', to: 'ukuran-almamater', ringkas: 'Pilihan ukuran jas almamater pada Data Pendaftaran peserta.' },

@@ -11,7 +11,7 @@ export interface TahunModulPayload {
   jenisSemester: SemesterGanjilGenap;
   isActive?: boolean;
 }
-export type ModulTahun = 'pmb' | 'keuangan';
+export type ModulTahun = 'pmb' | 'keuangan' | 'frs' | 'ta-skripsi' | 'sp';
 
 const buatApi = (modul: ModulTahun) => {
   const base = createCrudApi<TahunModul, TahunModulPayload, Partial<TahunModulPayload>>(`tahun-${modul}`);

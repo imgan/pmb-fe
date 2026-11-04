@@ -70,7 +70,6 @@ const gelombangFormOptions = computed(() =>
 );
 
 const pesertaList = ref<Peserta[]>([]);
-const pesertaOptions = ref<{ value: number; label: string }[]>([]);
 const pesertaById = (id: number | '') => pesertaList.value.find((p) => p.id === id) ?? null;
 
 const golonganKelasList = ref<GolonganKelas[]>([]);
@@ -86,7 +85,6 @@ const prodiOptions = computed(() => {
 const loadPesertaOptions = async () => {
   const pesertaResult = await pesertaApi.list({ limit: 200 });
   pesertaList.value = pesertaResult.data;
-  pesertaOptions.value = pesertaResult.data.map((p) => ({ value: p.id, label: `${p.namaLengkap} — ${p.email}` }));
 };
 
 onMounted(async () => {
@@ -216,11 +214,7 @@ const form = reactive({
   statusBeasiswa: '' as '' | 'diusulkan' | 'disetujui' | 'ditolak',
   statusKuliah: 'menunggu' as 'menunggu' | 'diterima' | 'ditolak',
 });
-// Akun peserta: 'baru' = buat akun peserta baru sekaligus dari form ini, 'tautkan' = pilih akun yang sudah ada.
-const MODE_AKUN = [
-  { value: 'baru' as const, label: 'Buat akun peserta baru', icon: 'person_add' },
-  { value: 'tautkan' as const, label: 'Tautkan akun yang sudah ada', icon: 'link' },
-];
+// Satu pintu: data baru selalu membuat akun peserta; 'tautkan' hanya saat Simpan diulang setelah akunnya telanjur terbuat.
 const modeAkun = ref<'baru' | 'tautkan'>('baru');
 const akun = reactive({ namaLengkap: '', email: '', noTelepon: '' });
 const akunBaru = reactive({ golonganKelasId: '' as number | '', jurusanId: '' as number | '' });
@@ -289,7 +283,6 @@ watch(
   }
 );
 
-const sudahTertaut = computed(() => !!editingItem.value?.pesertaId);
 const modeBaru = computed(() => modeAkun.value === 'baru' && !form.pesertaId);
 /** Kolom akun + biodata tampil saat membuat akun baru atau setelah akun peserta tertaut dimuat. */
 const formAkunTampil = computed(() => modeBaru.value || !!biodataPeserta.value);
@@ -317,11 +310,6 @@ watch(
     if (modeBaru.value) form.prodi = jurusanList.value.find((j) => j.id === id)?.namaJurusan ?? '';
   }
 );
-
-const pilihModeAkun = (mode: 'baru' | 'tautkan') => {
-  modeAkun.value = mode;
-  if (mode === 'baru') form.pesertaId = '';
-};
 
 const validasiAkun = () => {
   Object.keys(akunErrors).forEach((k) => delete akunErrors[k]);
@@ -835,18 +823,6 @@ const resetPasswordPeserta = async (item: CalonMahasiswa) => {
         </div>
 
         <div class="space-y-3">
-          <div v-if="!sudahTertaut" class="flex flex-wrap gap-2">
-            <button
-              v-for="m in MODE_AKUN"
-              :key="m.value"
-              type="button"
-              class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border text-label-md font-medium transition-colors"
-              :class="modeAkun === m.value ? 'border-primary bg-primary text-on-primary' : 'border-outline-variant text-on-surface hover:bg-surface-container'"
-              @click="pilihModeAkun(m.value)"
-            >
-              <span class="material-symbols-outlined" style="font-size: 18px">{{ m.icon }}</span>{{ m.label }}
-            </button>
-          </div>
           <div v-if="modeBaru" class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <SelectInput
               v-model="akunBaru.golonganKelasId"
@@ -873,17 +849,6 @@ const resetPasswordPeserta = async (item: CalonMahasiswa) => {
               Akun peserta dibuat otomatis — login dengan nomor HP, password awal = nomor HP.
             </p>
           </div>
-          <template v-else>
-            <SelectInput
-              v-model="form.pesertaId"
-              label="Tautkan ke Akun Peserta PMB"
-              placeholder="Tidak ditautkan (isi status manual)"
-              :options="pesertaOptions"
-            />
-            <p class="text-label-sm text-on-surface-variant">
-              Jika ditautkan, status Lulus Tes Masuk &amp; Status Kuliah otomatis mengikuti data Peserta yang sebenarnya dan tidak bisa diisi manual.
-            </p>
-          </template>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 py-2 border-y border-outline-variant">

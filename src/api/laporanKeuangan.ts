@@ -14,6 +14,8 @@ export interface LaporanKeuanganQuery {
   tahunAjaranId?: number;
   /** Filter prodi (kode prodi, mencakup kelas Reguler & Karyawan). */
   kodeProdi?: string;
+  /** Laporan Tunggakan Mahasiswa: MENUNGGAK | BELUM_LUNAS. */
+  statusTunggakan?: string;
 }
 
 export interface LaporanSertifikasiQuery {

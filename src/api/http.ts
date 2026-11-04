@@ -102,7 +102,7 @@ http.interceptors.response.use(
 
       // Request dari sesi lama (token sudah diganti login baru): ulangi saja dengan token sekarang,
       // jangan refresh/hapus token sesi baru.
-      const sentToken = String(originalRequest.headers.get('Authorization') ?? '').replace(/^Bearers+/, '');
+      const sentToken = String(originalRequest.headers.get('Authorization') ?? '').replace(/^Bearer\s+/, '');
       const currentToken = tokenStorage.getAccessToken();
       if (currentToken && sentToken && sentToken !== currentToken) {
         originalRequest.headers.set('Authorization', `Bearer ${currentToken}`);

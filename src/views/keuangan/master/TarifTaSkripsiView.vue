@@ -16,9 +16,10 @@ import StatusBadge from '@/components/ui/StatusBadge.vue';
 import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
 import { tarifTaSkripsiApi, type TarifTaSkripsiPayload } from '@/api/tarifTaSkripsi';
 import { jurusanApi } from '@/api/jurusan';
-import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { tahunModulApi } from '@/api/tahunModul';
 import { formatTahunAjaran } from '@/utils/tahunAjaranOptions';
 import { extractErrorMessage } from '@/api/http';
+import { toastInfo } from '@/utils/swal';
 import { formatCurrencyIdr, formatCurrencyInputIdr, parseRupiahInput } from '@/utils/format';
 import { useCrudPage } from '@/composables/useCrudPage';
 import { usePermission } from '@/composables/usePermission';
@@ -27,17 +28,22 @@ import type { TarifTaSkripsi } from '@/types/entities';
 
 const { canCreate, canUpdate, canDelete } = usePermission(MENU.KEUANGAN_TARIF_TA_SKRIPSI_MANAGEMENT);
 
+// Tarif TA berlaku per prodi (Generate Tagihan mencocokkan lewat kode prodi), jadi golongan kelas tidak ditampilkan terpisah.
 const jurusanOptions = ref<{ value: number; label: string }[]>([]);
-const tahunAjaranOptions = ref<{ value: number; label: string }[]>([]);
-const tahunAjaranAktifId = ref<number | ''>('');
+// Kode prodi -> id pilihan, supaya tarif lama yang tersimpan di baris golongan kelas tetap terpilih saat diedit.
+const idProdiByKode = ref<Record<string, number>>({});
+// Pilihan dari Modul Admin › Master › Tahun TA/Skripsi.
+const tahunTaOptions = ref<{ value: number; label: string }[]>([]);
+const tahunTaAktifId = ref<number | ''>('');
 onMounted(async () => {
-  const [jurusanResult, tahunAjaranResult] = await Promise.all([
-    jurusanApi.list({ limit: 200 }),
-    tahunAjaranApi.list({ limit: 100 }),
+  const [jurusanResult, tahunTaResult] = await Promise.all([
+    jurusanApi.listProdi(),
+    tahunModulApi('ta-skripsi').list({ limit: 100 }),
   ]);
   jurusanOptions.value = jurusanResult.data.map((j) => ({ value: j.id, label: j.namaJurusan }));
-  tahunAjaranOptions.value = tahunAjaranResult.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
-  tahunAjaranAktifId.value = tahunAjaranResult.data.find((t) => t.isActive)?.id ?? '';
+  idProdiByKode.value = Object.fromEntries(jurusanResult.data.filter((j) => j.kodeProdi).map((j) => [j.kodeProdi as string, j.id]));
+  tahunTaOptions.value = tahunTaResult.data.map((t) => ({ value: t.id, label: formatTahunAjaran(t) }));
+  tahunTaAktifId.value = tahunTaResult.data.find((t) => t.isActive)?.id ?? '';
 });
 
 const {
@@ -72,7 +78,7 @@ fetchItems();
 
 const columns: DataTableColumn[] = [
   { key: 'no', label: 'No', align: 'center' },
-  { key: 'tahunAjaran', label: 'Tahun Akademik', sortable: true },
+  { key: 'tahunTaSkripsi', label: 'Tahun TA/Skripsi', sortable: true },
   { key: 'periode', label: 'Periode', sortable: true },
   { key: 'biayaPendaftaran', label: 'Biaya Pendaftaran', align: 'right', sortable: true },
   { key: 'jurusan', label: 'Prodi', sortable: true },
@@ -85,7 +91,7 @@ const rows = computed(() =>
 );
 
 interface FormState {
-  tahunAjaranId: number | '';
+  tahunTaSkripsiId: number | '';
   periode: number | '';
   jurusanId: number | '';
   biayaPendaftaran: number | null;
@@ -94,7 +100,7 @@ interface FormState {
 }
 
 const emptyForm = (): FormState => ({
-  tahunAjaranId: tahunAjaranAktifId.value,
+  tahunTaSkripsiId: tahunTaAktifId.value,
   periode: '',
   jurusanId: '',
   biayaPendaftaran: null,
@@ -115,9 +121,9 @@ watch(
     formError.value = null;
     Object.assign(form, emptyForm());
     if (editing) {
-      form.tahunAjaranId = editing.tahunAjaranId ?? '';
+      form.tahunTaSkripsiId = editing.tahunTaSkripsiId ?? '';
       form.periode = editing.periode;
-      form.jurusanId = editing.jurusanId;
+      form.jurusanId = (editing.jurusan?.kodeProdi && idProdiByKode.value[editing.jurusan.kodeProdi]) || editing.jurusanId;
       form.biayaPendaftaran = editing.biayaPendaftaran;
       form.biayaPerpanjangan = editing.biayaPerpanjangan;
       form.isActive = editing.isActive;
@@ -132,7 +138,7 @@ const onBiayaInput = (field: 'biayaPendaftaran' | 'biayaPerpanjangan') => (event
 
 const handleSubmit = async () => {
   Object.keys(errors).forEach((k) => delete errors[k]);
-  if (!form.tahunAjaranId) errors.tahunAjaranId = 'Tahun akademik wajib dipilih';
+  if (!form.tahunTaSkripsiId) errors.tahunTaSkripsiId = 'Tahun TA/Skripsi wajib dipilih';
   if (!form.periode) errors.periode = 'Periode wajib diisi';
   if (!form.jurusanId) errors.jurusanId = 'Prodi wajib dipilih';
   if (!form.biayaPendaftaran || form.biayaPendaftaran <= 0) errors.biayaPendaftaran = 'Biaya pendaftaran wajib diisi';
@@ -142,7 +148,7 @@ const handleSubmit = async () => {
   formError.value = null;
   try {
     const payload: TarifTaSkripsiPayload = {
-      tahunAjaranId: Number(form.tahunAjaranId),
+      tahunTaSkripsiId: Number(form.tahunTaSkripsiId),
       periode: Number(form.periode),
       jurusanId: Number(form.jurusanId),
       biayaPendaftaran: Number(form.biayaPendaftaran),
@@ -150,7 +156,9 @@ const handleSubmit = async () => {
       isActive: form.isActive,
     };
     if (editingItem.value) {
-      await tarifTaSkripsiApi.update(editingItem.value.id, payload);
+      const hasil = (await tarifTaSkripsiApi.update(editingItem.value.id, payload)) as { tagihanDisesuaikan?: number };
+      // Tagihan mahasiswa dari tarif ini ikut ditimpa ke nominal baru.
+      if (hasil.tagihanDisesuaikan) toastInfo(`${hasil.tagihanDisesuaikan} tagihan TA/Skripsi mahasiswa ikut diperbarui ke tarif baru.`);
     } else {
       await tarifTaSkripsiApi.create(payload);
     }
@@ -204,7 +212,7 @@ const handleSubmit = async () => {
         :sort-dir="sortDir"
         @sort="handleSort"
       >
-        <template #cell-tahunAjaran="{ item }">{{ item.tahunAjaran ? formatTahunAjaran(item.tahunAjaran) : '-' }}</template>
+        <template #cell-tahunTaSkripsi="{ item }">{{ item.tahunTaSkripsi ? formatTahunAjaran(item.tahunTaSkripsi) : '-' }}</template>
         <template #cell-biayaPendaftaran="{ item }">{{ formatCurrencyIdr(item.biayaPendaftaran) }}</template>
         <template #cell-jurusan="{ item }">{{ item.jurusan?.namaJurusan ?? '-' }}</template>
         <template #cell-biayaPerpanjangan="{ item }">{{ formatCurrencyIdr(item.biayaPerpanjangan) }}</template>
@@ -230,12 +238,12 @@ const handleSubmit = async () => {
           {{ formError }}
         </div>
         <SelectInput
-          v-model="form.tahunAjaranId"
-          label="Tahun Akademik"
+          v-model="form.tahunTaSkripsiId"
+          label="Tahun TA/Skripsi"
           required
-          placeholder="Pilih tahun akademik..."
-          :options="tahunAjaranOptions"
-          :error="errors.tahunAjaranId"
+          placeholder="Pilih tahun TA/Skripsi..."
+          :options="tahunTaOptions"
+          :error="errors.tahunTaSkripsiId"
         />
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <TextInput v-model.number="form.periode" label="Periode" type="number" required :error="errors.periode" />

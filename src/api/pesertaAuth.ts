@@ -73,13 +73,22 @@ export interface PesertaDataPmb extends PesertaDataPmbPayload {
   tersimpan: boolean;
   /** Dikunci admin = hanya bisa dibaca. */
   terkunci: boolean;
+  /** Isian popup Sumber Informasi (admin); kunci terpisah. */
+  sumber: PesertaSumberInformasiPayload & { terkunci: boolean };
   opsi: {
     kelas: { id: number; namaKelas: string }[];
     beasiswa: { id: number; namaBeasiswa: string }[];
     gelombang: { id: number; namaGelombang: string }[];
     ukuran: { id: number; ukuran: string }[];
     jurusan: { id: number; namaJurusan: string; jenjangPendidikan: string | null; golonganKelasId: number }[];
+    sumber: { id: number; namaInformasi: string }[];
   };
+}
+
+export interface PesertaSumberInformasiPayload {
+  sumberInformasiId: number | null;
+  keteranganSumber: string | null;
+  kodeUnik: string | null;
 }
 
 export interface PesertaLoginResult {
@@ -148,6 +157,10 @@ export const pesertaAuthApi = {
   },
   async getMyDataPmb(): Promise<PesertaDataPmb> {
     const { data } = await pesertaHttp.get<ApiResponse<PesertaDataPmb>>('/peserta/me/data-pmb');
+    return data.data;
+  },
+  async saveMySumberInformasi(payload: PesertaSumberInformasiPayload): Promise<PesertaDataPmb> {
+    const { data } = await pesertaHttp.put<ApiResponse<PesertaDataPmb>>('/peserta/me/sumber-informasi', payload);
     return data.data;
   },
   async saveMyDataPmb(payload: PesertaDataPmbPayload): Promise<PesertaDataPmb> {

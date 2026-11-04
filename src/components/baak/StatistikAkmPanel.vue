@@ -75,8 +75,8 @@ const handleExport = async () => {
           Statistik Mahasiswa<span v-if="data"> · Periode {{ data.tahunAjaran }}</span>
         </h2>
         <p class="text-body-sm text-on-surface-variant">
-          Status Aktivitas Kuliah Mahasiswa (AKM) Feeder PDDIKTI. Bila belum ada AKM: Aktif = KRS disetujui DPA/BAAK,
-          Non Aktif = sudah diberi tagihan tetapi KRS belum disetujui.
+          Status Aktivitas Kuliah Mahasiswa (AKM) Feeder PDDIKTI. Bila belum ada AKM: Aktif = sudah isi KRS,
+          Non Aktif = belum isi KRS atau sudah diberi tagihan tanpa KRS.
         </p>
       </div>
       <div class="flex flex-wrap items-end gap-2">

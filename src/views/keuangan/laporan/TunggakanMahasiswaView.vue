@@ -6,6 +6,7 @@ import AppButton from '@/components/ui/AppButton.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import SearchInput from '@/components/ui/SearchInput.vue';
 import Modal from '@/components/ui/Modal.vue';
+import StatusBadge from '@/components/ui/StatusBadge.vue';
 import { laporanKeuanganApi } from '@/api/laporanKeuangan';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
 import { jurusanApi } from '@/api/jurusan';
@@ -34,9 +35,15 @@ const selectedTahunAjaran = ref<number | ''>('');
 // Prodi berdasarkan kode prodi (jurusan Reguler & Karyawan satu prodi digabung).
 const prodiOptions = ref<Option[]>([]);
 const selectedProdi = ref<string>('');
+const selectedStatus = ref<string>('');
+const STATUS_OPTIONS: Option[] = [
+  { value: 'BELUM_LUNAS', label: 'Belum Lunas' },
+  { value: 'MENUNGGAK', label: 'Menunggak' },
+];
 const filterQuery = () => ({
   tahunAjaranId: selectedTahunAjaran.value || undefined,
   kodeProdi: selectedProdi.value || undefined,
+  statusTunggakan: selectedStatus.value || undefined,
 });
 
 const rows = ref<LaporanTunggakanRow[]>([]);
@@ -119,8 +126,10 @@ const columns: DataTableColumn[] = [
   { key: 'tagihanSisa', label: 'Sisa Tagihan Kuliah', align: 'right' },
   { key: 'tagihanTaSkripsisSisa', label: 'Sisa TA/Skripsi', align: 'right' },
   { key: 'tagihanBiayaLainSisa', label: 'Sisa Biaya Lain', align: 'right' },
+  { key: 'tagihanWisudaSisa', label: 'Sisa Wisuda', align: 'right' },
   { key: 'tunggakanManual', label: 'Tunggakan Lain', align: 'right' },
   { key: 'totalTunggakan', label: 'Total Tunggakan', align: 'right' },
+  { key: 'status', label: 'Status', align: 'center' },
 ];
 
 const filteredRows = computed(() => {
@@ -189,6 +198,9 @@ const closeDetail = () => {
         <div class="w-full md:w-72">
           <SelectInput v-model="selectedProdi" label="Prodi" placeholder="-- Semua Prodi --" :options="prodiOptions" />
         </div>
+        <div class="w-full md:w-48">
+          <SelectInput v-model="selectedStatus" label="Status" placeholder="-- Semua Status --" :options="STATUS_OPTIONS" />
+        </div>
         <AppButton icon="search" :disabled="loading" @click="handleTampilkan">{{ loading ? 'Memuat...' : 'Tampilkan' }}</AppButton>
         <div class="flex-1"></div>
         <AppButton variant="secondary" icon="download" :disabled="exportingMahasiswa" @click="handleExportPerMahasiswa">
@@ -218,9 +230,13 @@ const closeDetail = () => {
         <template #cell-tagihanSisa="{ item }">{{ formatCurrencyIdr(item.tagihanSisa) }}</template>
         <template #cell-tagihanTaSkripsisSisa="{ item }">{{ formatCurrencyIdr(item.tagihanTaSkripsisSisa) }}</template>
         <template #cell-tagihanBiayaLainSisa="{ item }">{{ formatCurrencyIdr(item.tagihanBiayaLainSisa) }}</template>
+        <template #cell-tagihanWisudaSisa="{ item }">{{ formatCurrencyIdr(item.tagihanWisudaSisa) }}</template>
         <template #cell-tunggakanManual="{ item }">{{ formatCurrencyIdr(item.tunggakanManual) }}</template>
         <template #cell-totalTunggakan="{ item }">
           <span class="text-error font-medium">{{ formatCurrencyIdr(item.totalTunggakan) }}</span>
+        </template>
+        <template #cell-status="{ item }">
+          <StatusBadge :variant="item.menunggak ? 'danger' : 'warning'" :label="item.menunggak ? 'Menunggak' : 'Belum Lunas'" />
         </template>
         <template #actions="{ item }">
           <AppButton variant="secondary" @click="openDetail(item)">Detail</AppButton>

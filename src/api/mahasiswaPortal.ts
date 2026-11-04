@@ -47,6 +47,11 @@ export interface KuotaSks {
 }
 
 export const mahasiswaSemesterApi = {
+  /** Periode pengisian KRS: mengikuti Tahun FRS aktif. */
+  async periodeKrs(): Promise<{ tahunAjaran: TahunAjaran; semester: number; statusMasuk: StatusMasukMahasiswa }> {
+    const { data } = await mahasiswaHttp.get<ApiResponse<{ tahunAjaran: TahunAjaran; semester: number; statusMasuk: StatusMasukMahasiswa }>>('/mahasiswa-portal/krs/periode');
+    return data.data;
+  },
   async berjalan(): Promise<SemesterBerjalan> {
     const { data } = await mahasiswaHttp.get<ApiResponse<SemesterBerjalan>>('/mahasiswa-portal/semester-berjalan');
     return data.data;
@@ -462,6 +467,24 @@ export interface RiwayatPembayaran {
     noVirtualAccount: string | null;
   };
   tagihan: RiwayatTagihanKuliah[];
+  wisuda?: TagihanWisudaPortal[];
+  /** Tagihan TA/Skripsi, bentuk sama dengan tagihan wisuda. */
+  taSkripsi?: TagihanWisudaPortal[];
+}
+
+/** Tagihan wisuda mahasiswa: total, sisa, jadwal cicilan & riwayat bayar. */
+export interface TagihanWisudaPortal {
+  id: number;
+  tahun: number;
+  keterangan: string | null;
+  totalTagihan: number;
+  totalDibayar: number;
+  sisaTagihan: number;
+  /** Hanya tagihan TA/Skripsi: dibayar melebihi tagihan. */
+  lebihBayar?: number;
+  status: StatusTagihanKuliah;
+  cicilan: RiwayatTagihanKuliah['cicilan'];
+  pembayaran: { id: number; tanggalBayar: string; noBukti: string; nominal: number; kodeBank: string | null }[];
 }
 
 export const mahasiswaPembayaranApi = {

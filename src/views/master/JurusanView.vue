@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import PageHeader from '@/components/layout/PageHeader.vue';
 import DataTable, { type DataTableColumn } from '@/components/ui/DataTable.vue';
 import Pagination from '@/components/ui/Pagination.vue';
@@ -14,7 +14,7 @@ import TextInput from '@/components/ui/TextInput.vue';
 import TextareaInput from '@/components/ui/TextareaInput.vue';
 import FileInput from '@/components/ui/FileInput.vue';
 import ImportExportButtons from '@/components/ui/ImportExportButtons.vue';
-import { jurusanApi } from '@/api/jurusan';
+import { jurusanApi, type ProdiGrup } from '@/api/jurusan';
 import { golonganKelasApi } from '@/api/golonganKelas';
 import { extractErrorMessage } from '@/api/http';
 import { useCrudPage } from '@/composables/useCrudPage';
@@ -56,9 +56,9 @@ const {
   requestDelete,
   cancelDelete,
   confirmDelete,
-} = useCrudPage({
-  fetchList: jurusanApi.list,
-  remove: jurusanApi.remove,
+} = useCrudPage<ProdiGrup>({
+  fetchList: jurusanApi.grup.list,
+  remove: jurusanApi.grup.remove,
   extraQuery: () => ({ golonganKelasId: golonganKelasFilter.value || undefined }),
 });
 
@@ -70,12 +70,13 @@ const onFilterChange = () => {
 fetchItems();
 
 const columns: DataTableColumn[] = [
-  { key: 'namaJurusan', label: 'Nama Jurusan', sortable: true },
-  { key: 'golonganKelas', label: 'Golongan Kelas', sortable: true },
+  { key: 'namaJurusan', label: 'Jurusan / Prodi', sortable: true },
+  { key: 'kodeProdi', label: 'Kode Prodi' },
+  { key: 'golonganKelas', label: 'Golongan Kelas' },
 ];
 
 const form = reactive({
-  golonganKelasId: '' as number | '',
+  golonganKelasIds: [] as number[],
   namaJurusan: '',
   kodeProdi: '',
   singkatan: '',
@@ -96,7 +97,7 @@ watch(
     if (!open) return;
     Object.keys(errors).forEach((k) => delete errors[k]);
     formError.value = null;
-    form.golonganKelasId = editing?.golonganKelasId ?? '';
+    form.golonganKelasIds = editing?.golongan.map((g) => g.golonganKelasId) ?? [];
     form.namaJurusan = editing?.namaJurusan ?? '';
     form.kodeProdi = editing?.kodeProdi ?? '';
     form.singkatan = editing?.singkatan ?? '';
@@ -110,17 +111,25 @@ watch(
   { immediate: true }
 );
 
+// Jumlah data per golongan kelas prodi yang diubah; yang masih dipakai tidak bisa dilepas.
+const dipakaiOf = computed(() => new Map(editingItem.value?.golongan.map((g) => [g.golonganKelasId, g.dipakai]) ?? []));
+const toggleGolongan = (id: number) => {
+  const i = form.golonganKelasIds.indexOf(id);
+  if (i === -1) form.golonganKelasIds.push(id);
+  else form.golonganKelasIds.splice(i, 1);
+};
+
 const handleSubmit = async () => {
   Object.keys(errors).forEach((k) => delete errors[k]);
-  if (!form.golonganKelasId) errors.golonganKelasId = 'Golongan kelas wajib dipilih';
-  if (!form.namaJurusan.trim()) errors.namaJurusan = 'Nama jurusan wajib diisi';
+  if (!form.golonganKelasIds.length) errors.golonganKelasIds = 'Pilih minimal satu golongan kelas';
+  if (!form.namaJurusan.trim()) errors.namaJurusan = 'Nama jurusan / prodi wajib diisi';
   if (Object.keys(errors).length > 0) return;
 
   submitting.value = true;
   formError.value = null;
   try {
     const payload = {
-      golonganKelasId: Number(form.golonganKelasId),
+      golonganKelasIds: form.golonganKelasIds,
       namaJurusan: form.namaJurusan.trim(),
       kodeProdi: form.kodeProdi.trim() || null,
       singkatan: form.singkatan.trim().toUpperCase() || null,
@@ -132,9 +141,9 @@ const handleSubmit = async () => {
       namaFakultas: form.namaFakultas.trim() || null,
     };
     if (editingItem.value) {
-      await jurusanApi.update(editingItem.value.id, payload);
+      await jurusanApi.grup.update(editingItem.value.id, payload);
     } else {
-      await jurusanApi.create(payload);
+      await jurusanApi.grup.create(payload);
     }
     onSaved();
   } catch (err) {
@@ -147,7 +156,7 @@ const handleSubmit = async () => {
 
 <template>
   <div>
-    <PageHeader title="Jurusan" subtitle="Kelola master data jurusan per golongan kelas.">
+    <PageHeader title="Jurusan / Prodi" subtitle="Satu prodi bisa dibuka untuk banyak golongan kelas.">
       <template #actions>
         <ImportExportButtons
           :export-fn="jurusanApi.exportExcel"
@@ -158,13 +167,26 @@ const handleSubmit = async () => {
           template-filename="template-import-jurusan.xlsx"
           @imported="fetchItems"
         />
-        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Jurusan</AppButton>
+        <AppButton v-if="canCreate" icon="add" @click="openCreate">Tambah Jurusan / Prodi</AppButton>
       </template>
     </PageHeader>
 
+    <section class="mb-6 rounded-lg border border-outline-variant bg-primary-container/30 p-4 text-body-sm">
+      <p class="font-semibold text-on-surface mb-1">Jurusan dipakai untuk:</p>
+      <ul class="list-disc pl-5 text-on-surface-variant space-y-0.5">
+        <li><strong class="text-on-surface">PMB:</strong> website &amp; formulir pendaftaran, Data Pendaftaran peserta, menu Peserta, Tes Ujian, Reporting.</li>
+        <li><strong class="text-on-surface">Akademik:</strong> data mahasiswa, Generate NIM, kurikulum, jadwal, KRS, nilai, sidang, yudisium.</li>
+        <li><strong class="text-on-surface">Keuangan:</strong> tarif biaya kuliah, TA/Skripsi, pembimbing, tagihan, dan laporan tunggakan.</li>
+        <li><strong class="text-on-surface">SIM &amp; SDI:</strong> laporan akademik, Feeder, dan data dosen.</li>
+      </ul>
+      <p class="mt-2 text-on-surface-variant">
+        Isian prodi berlaku untuk semua golongan kelasnya. Perubahan di sini langsung berdampak ke menu-menu tersebut.
+      </p>
+    </section>
+
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="p-4 border-b border-outline-variant flex flex-col md:flex-row justify-between items-center gap-4 bg-surface-bright">
-        <SearchInput v-model="search" placeholder="Cari jurusan..." />
+        <SearchInput v-model="search" placeholder="Cari jurusan / prodi..." />
         <div class="w-full md:w-64">
           <SelectInput
             v-model="golonganKelasFilter"
@@ -182,7 +204,12 @@ const handleSubmit = async () => {
       </div>
 
       <DataTable :columns="columns" :items="items" :loading="loading" :sort-key="sortBy" :sort-dir="sortDir" @sort="handleSort">
-        <template #cell-golonganKelas="{ item }">{{ item.golonganKelas?.namaKelas ?? '-' }}</template>
+        <template #cell-kodeProdi="{ item }">{{ item.kodeProdi || '-' }}</template>
+        <template #cell-golonganKelas="{ item }">
+          <div class="flex flex-wrap gap-1.5">
+            <span v-for="g in item.golongan" :key="g.jurusanId" class="px-2 py-0.5 rounded-full bg-surface-container text-label-sm text-on-surface">{{ g.namaKelas }}</span>
+          </div>
+        </template>
         <template #actions="{ item }">
           <RowActions :can-update="canUpdate" :can-delete="canDelete" @edit="openEdit(item)" @delete="requestDelete(item)" />
         </template>
@@ -191,19 +218,35 @@ const handleSubmit = async () => {
       <Pagination v-model="page" :meta="meta" />
     </section>
 
-    <Modal :model-value="isFormOpen" :title="editingItem ? 'Ubah Jurusan' : 'Tambah Jurusan'" @update:model-value="closeForm">
+    <Modal :model-value="isFormOpen" :title="editingItem ? 'Ubah Jurusan / Prodi' : 'Tambah Jurusan / Prodi'" @update:model-value="closeForm">
       <form class="space-y-4" @submit.prevent="handleSubmit">
         <div v-if="formError" class="px-3 py-2 rounded-md bg-error-container text-on-error-container text-body-sm">
           {{ formError }}
         </div>
-        <SelectInput
-          v-model="form.golonganKelasId"
-          label="Golongan Kelas"
-          required
-          :options="golonganKelasOptions"
-          :error="errors.golonganKelasId"
-        />
-        <TextInput v-model="form.namaJurusan" label="Nama Jurusan" required :error="errors.namaJurusan" />
+        <TextInput v-model="form.namaJurusan" label="Nama Jurusan / Prodi" required :error="errors.namaJurusan" />
+        <div>
+          <span class="block font-medium text-label-md text-on-surface mb-2">Golongan Kelas<span class="text-error"> *</span></span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label
+              v-for="g in golonganKelasOptions"
+              :key="g.value"
+              class="flex items-center gap-2 px-3 py-2 border rounded-md text-body-sm"
+              :class="[form.golonganKelasIds.includes(g.value) ? 'border-primary bg-primary-container/30' : 'border-outline-variant', dipakaiOf.get(g.value) ? 'cursor-not-allowed' : 'cursor-pointer']"
+            >
+              <input
+                type="checkbox"
+                class="w-4 h-4 accent-primary"
+                :checked="form.golonganKelasIds.includes(g.value)"
+                :disabled="!!dipakaiOf.get(g.value)"
+                @change="toggleGolongan(g.value)"
+              />
+              <span class="flex-1">{{ g.label }}</span>
+              <span v-if="dipakaiOf.get(g.value)" class="text-label-sm text-on-surface-variant">{{ dipakaiOf.get(g.value) }} data</span>
+            </label>
+          </div>
+          <p v-if="errors.golonganKelasIds" class="mt-1 text-label-sm text-error">{{ errors.golonganKelasIds }}</p>
+          <p v-else class="mt-1 text-label-sm text-on-surface-variant">Golongan kelas yang masih dipakai data lain tidak bisa dilepas.</p>
+        </div>
         <TextInput v-model="form.kodeProdi" label="Kode Prodi" placeholder="mis. 57201" />
         <TextInput
           v-model="form.singkatan"
@@ -242,8 +285,8 @@ const handleSubmit = async () => {
 
     <ConfirmDialog
       :open="!!deleteTarget"
-      title="Hapus Jurusan"
-      :message="`Yakin ingin menghapus jurusan ${deleteTarget?.namaJurusan ?? ''}?`"
+      title="Hapus Jurusan / Prodi"
+      :message="`Yakin ingin menghapus prodi ${deleteTarget?.namaJurusan ?? ''} beserta semua golongan kelasnya? Ditolak bila masih dipakai.`"
       :loading="deleting"
       @confirm="confirmDelete"
       @cancel="cancelDelete"

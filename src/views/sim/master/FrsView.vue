@@ -5,6 +5,7 @@ import AppButton from '@/components/ui/AppButton.vue';
 import SelectInput from '@/components/ui/SelectInput.vue';
 import { simFrsApi } from '@/api/simFrs';
 import { tahunAjaranApi } from '@/api/tahunAjaran';
+import { tahunModulApi } from '@/api/tahunModul';
 import { extractErrorMessage } from '@/api/http';
 import type { LaporanFrsRow, SemesterGanjilGenap } from '@/types/entities';
 
@@ -37,6 +38,17 @@ onMounted(async () => {
   } catch {
     tahunOptions.value = [];
   }
+  // Bawaan: periode Tahun FRS aktif (kosongkan filter untuk melihat semua periode).
+  try {
+    const { data } = await tahunModulApi('frs').list({ limit: 1, isActive: true });
+    if (data[0]) {
+      selectedTahun.value = data[0].tahunMulai;
+      selectedSemester.value = data[0].jenisSemester;
+    }
+  } catch {
+    /* tanpa izin / belum ada: tampilkan semua periode */
+  }
+  handlePeriksa();
 });
 
 const handlePeriksa = async () => {
@@ -57,7 +69,6 @@ const handlePeriksa = async () => {
   }
 };
 
-handlePeriksa();
 
 const judul = computed(() => {
   const bagian = ['Daftar FRS'];

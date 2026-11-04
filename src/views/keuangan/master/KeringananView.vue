@@ -207,6 +207,16 @@ const handleSubmit = async () => {
       </template>
     </PageHeader>
 
+    <section class="mb-6 rounded-lg border border-outline-variant bg-primary-container/30 p-4 text-body-sm">
+      <p class="font-semibold text-on-surface mb-1">Keringanan digunakan untuk:</p>
+      <ul class="list-disc pl-5 text-on-surface-variant space-y-0.5">
+        <li>Memberi izin sementara kepada mahasiswa yang tertahan aturan Batas Tagihan Akademik, supaya tetap bisa mengakses KRS, UTS, atau UAS (termasuk nilai &amp; KHS).</li>
+        <li><strong class="text-on-surface">Nilai yang akan dibayar</strong> dihitung seolah sudah dibayar saat mengecek syarat pada <strong class="text-on-surface">Berlaku untuk</strong>.</li>
+        <li>Hanya berlaku bila statusnya <strong class="text-on-surface">Disetujui</strong> dan belum lewat <strong class="text-on-surface">Sampai tanggal</strong>.</li>
+        <li>Tagihan mahasiswa tidak berkurang: nilainya tetap harus dibayar dan dicatat di menu Pembayaran.</li>
+      </ul>
+    </section>
+
     <section class="bg-surface-container-lowest border border-outline-variant rounded-lg overflow-hidden">
       <div class="px-4 py-3 bg-primary text-on-primary text-label-md font-medium">Semua Data Master Keringanan</div>
 
